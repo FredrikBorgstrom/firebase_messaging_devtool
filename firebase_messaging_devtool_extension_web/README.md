@@ -41,7 +41,7 @@ Update the version in firebase_messaging_devtool/pubspec.yaml.
 Update firebase_messaging_devtool/CHANGELOG.md to describe the changes for the new version.
 Ensure your README.md and LICENSE are up-to-date.
 Navigate to the firebase_messaging_devtool directory in your terminal.
-Run dart pub publish --dry-run first to check for any analysis errors or warnings. Fix any issues reported.
+Run `dart pub publish --dry-run` first to check for any analysis errors or warnings. Fix any issues reported.
 Run dart pub publish to actually publish the package.
 
 ### Publisher Setup
