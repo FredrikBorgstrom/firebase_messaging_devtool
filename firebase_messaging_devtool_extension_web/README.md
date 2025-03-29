@@ -27,8 +27,16 @@ The source code for the UI (firebase_messaging_devtool_extension_web) is typical
 
 ### Steps to Publish
 Finalize your UI changes in firebase_messaging_devtool_extension_web.
-Run `flutter build web --csp` inside firebase_messaging_devtool_extension_web.
-Copy the contents of firebase_messaging_devtool_extension_web/build/web/ to firebase_messaging_devtool/extension/devtools/build/. Make sure the target directory is clean before copying if necessary.
+
+Don't do this:
+~~Run `flutter build web --csp` inside firebase_messaging_devtool_extension_web.
+Copy the contents of firebase_messaging_devtool_extension_web/build/web/ to firebase_messaging_devtool/extension/devtools/build/. Make sure the target directory is clean before copying if necessary.~~
+
+Instead do this: 
+Run this command from the 'firebase_messaging_devtool_extension_web' directory:
+`dart run devtools_extensions build_and_copy --source=. --dest=../firebase_messaging_devtool/extension/devtools/build`
+
+
 Update the version in firebase_messaging_devtool/pubspec.yaml.
 Update firebase_messaging_devtool/CHANGELOG.md to describe the changes for the new version.
 Ensure your README.md and LICENSE are up-to-date.

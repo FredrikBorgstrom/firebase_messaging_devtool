@@ -1,4 +1,4 @@
 name: firebase_messaging_devtool
-version: 0.0.1
-issueTracker: # TODO: Add your issue tracker URL here
+version: 0.0.2
+issueTracker: https://github.com/FredrikBorgstrom/firebase_messaging_devtool/issues
 materialIconCodePoint: '0xe3e0' # A basic message icon, you can change this 

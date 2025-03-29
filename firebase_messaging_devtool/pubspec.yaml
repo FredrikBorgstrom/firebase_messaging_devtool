@@ -1,9 +1,10 @@
 name: firebase_messaging_devtool
 description: "A Flutter DevTools extension to display Firebase Messaging events from a debugged application."
-version: 0.0.1
+version: 0.0.2
 homepage: https://abcx3.com
 repository: https://github.com/FredrikBorgstrom/firebase_messaging_devtool
 topics: [flutter, firebase, messaging, devtools, extension]
+
 environment:
   sdk: ^3.7.2
   flutter: ">=1.17.0"
