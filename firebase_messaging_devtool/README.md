@@ -23,7 +23,7 @@ A Flutter DevTools extension that displays Firebase Cloud Messaging (FCM) events
 
 ## Screenshots
 
-| ![Firebase Messaging DevTool Extension Screenshot](screenshots/screenshot_1.png) | ![settings](screenshots/Screenshot_2.png) |
+| ![Firebase Messaging DevTool Extension Screenshot](screenshots/screenshot_1.png) | ![settings](screenshots/screenshot_2.png) |
 
 ## Setup
 
