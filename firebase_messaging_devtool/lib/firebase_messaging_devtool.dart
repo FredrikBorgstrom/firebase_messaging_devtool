@@ -1,5 +1,7 @@
 import 'dart:developer' as developer;
 
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 /// The event kind used to send Firebase message data to the DevTools extension.
 ///
 /// Users of this package should not need to reference this directly if using
@@ -7,41 +9,170 @@ import 'dart:developer' as developer;
 const String firebaseMessagingDevToolsEventKind =
     'ext.firebase_messaging.message';
 
-/// Posts Firebase message data to the Firebase Messaging DevTools extension.
+/// Posts a Firebase message to the Firebase Messaging DevTools extension.
 ///
-/// This function simplifies sending message data from your application to the
-/// DevTools extension by handling the necessary `dart:developer` `postEvent` call.
+/// This function simplifies sending Firebase Cloud Messages from your application
+/// to the DevTools extension by handling all the necessary conversion and event posting.
 ///
 /// Args:
-///   [messageData]: A `Map<String, dynamic>` containing the Firebase message
-///                  payload you want to display in DevTools. Ensure the map
-///                  contains JSON-encodable values (String, num, bool, null,
-///                  List<JSON-encodable>, Map<String, JSON-encodable>).
-///                  Complex objects should be converted beforehand.
+///   [message]: The Firebase `RemoteMessage` object received by your app.
+///              The function will automatically extract all relevant information
+///              and convert it to a format suitable for display in DevTools.
 ///
 /// Example:
 /// ```dart
 /// import 'package:firebase_messaging/firebase_messaging.dart';
 /// import 'package:firebase_messaging_devtool/firebase_messaging_devtool.dart';
 ///
-/// void handleMessage(RemoteMessage message) {
-///   final Map<String, dynamic> dataForDevTools = {
-///     'messageId': message.messageId,
-///     'sentTime': message.sentTime?.toIso8601String(),
-///     'data': message.data,
-///     'notification': message.notification != null ? {
-///       'title': message.notification!.title,
-///       'body': message.notification!.body,
-///     } : null,
-///     // Add other relevant fields...
-///   };
+/// void setupFirebaseMessagingListener() {
+///   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+///     // Just pass the RemoteMessage directly to DevTools
+///     postFirebaseMessageToDevTools(message);
 ///
-///   postFirebaseMessageToDevTools(dataForDevTools);
+///     // Continue with your normal message handling...
+///   });
 /// }
 /// ```
-void postFirebaseMessageToDevTools(Map<String, dynamic> messageData) {
-  // TODO: Consider adding checks here to ensure messageData is JSON-encodable
-  // before sending, although postEvent might handle non-serializable data gracefully
-  // by converting to strings.
-  developer.postEvent(firebaseMessagingDevToolsEventKind, messageData);
+void postFirebaseMessageToDevTools(RemoteMessage message) {
+  // Debug log
+  print(
+    'Firebase Messaging DevTool: Sending message to DevTools, ID: ${message.messageId}',
+  );
+
+  try {
+    // Extract all useful information from the RemoteMessage
+    final Map<String, dynamic> messageData = {
+      // Basic message identification
+      'messageId': message.messageId,
+      'sentTime': message.sentTime?.toIso8601String(),
+
+      // Data payload (custom key-value pairs)
+      'data': message.data,
+
+      // Notification details
+      'notification':
+          message.notification != null
+              ? {
+                'title': message.notification!.title,
+                'body': message.notification!.body,
+                'android':
+                    message.notification!.android != null
+                        ? {
+                          'channelId': message.notification!.android!.channelId,
+                          'clickAction':
+                              message.notification!.android!.clickAction,
+                          'color': message.notification!.android!.color,
+                          'count': message.notification!.android!.count,
+                          'imageUrl': message.notification!.android!.imageUrl,
+                          'link': message.notification!.android!.link,
+                          // Convert enum to string to avoid serialization issues
+                          'priority':
+                              message.notification!.android!.priority
+                                  ?.toString(),
+                          'smallIcon': message.notification!.android!.smallIcon,
+                          'sound': message.notification!.android!.sound,
+                          'tag': message.notification!.android!.tag,
+                          'ticker': message.notification!.android!.ticker,
+                          // Convert enum to string to avoid serialization issues
+                          'visibility':
+                              message.notification!.android!.visibility
+                                  ?.toString(),
+                        }
+                        : null,
+                'apple':
+                    message.notification!.apple != null
+                        ? {
+                          'badge': message.notification!.apple!.badge,
+                          'subtitle': message.notification!.apple!.subtitle,
+                          'sound':
+                              message.notification!.apple!.sound != null
+                                  ? {
+                                    'critical':
+                                        message
+                                            .notification!
+                                            .apple!
+                                            .sound!
+                                            .critical,
+                                    'name':
+                                        message
+                                            .notification!
+                                            .apple!
+                                            .sound!
+                                            .name,
+                                    'volume':
+                                        message
+                                            .notification!
+                                            .apple!
+                                            .sound!
+                                            .volume,
+                                  }
+                                  : null,
+                          'imageUrl': message.notification!.apple!.imageUrl,
+                        }
+                        : null,
+                'web':
+                    message.notification!.web != null
+                        ? {
+                          'analyticsLabel':
+                              message.notification!.web!.analyticsLabel,
+                          'image': message.notification!.web!.image,
+                          'link': message.notification!.web!.link,
+                        }
+                        : null,
+              }
+              : null,
+
+      // Message metadata
+      'category': message.category,
+      'collapseKey': message.collapseKey,
+      'contentAvailable': message.contentAvailable,
+      'from': message.from,
+      'messageType': message.messageType,
+      'mutableContent': message.mutableContent,
+      'threadId': message.threadId,
+      'ttl': message.ttl,
+
+      // Timestamp information
+      'receivedAt':
+          DateTime.now().toIso8601String(), // When the app received the message
+    };
+
+    print(
+      'Firebase Messaging DevTool: Posting event with kind: $firebaseMessagingDevToolsEventKind',
+    );
+    developer.postEvent(firebaseMessagingDevToolsEventKind, messageData);
+    print('Firebase Messaging DevTool: Event posted successfully');
+  } catch (e) {
+    print('Firebase Messaging DevTool: Error posting event: $e');
+
+    // Try to send a simplified version of the message if the detailed version fails
+    try {
+      // Create a simplified version with just the basic fields
+      final Map<String, dynamic> simplifiedMessage = {
+        'messageId': message.messageId,
+        'sentTime': message.sentTime?.toIso8601String(),
+        'data': message.data,
+        'notification':
+            message.notification != null
+                ? {
+                  'title': message.notification!.title,
+                  'body': message.notification!.body,
+                }
+                : null,
+        'error': 'Original message contained non-serializable types: $e',
+        'receivedAt': DateTime.now().toIso8601String(),
+      };
+
+      print('Firebase Messaging DevTool: Trying simplified message instead');
+      developer.postEvent(
+        firebaseMessagingDevToolsEventKind,
+        simplifiedMessage,
+      );
+      print('Firebase Messaging DevTool: Simplified message sent successfully');
+    } catch (fallbackError) {
+      print(
+        'Firebase Messaging DevTool: Even simplified message failed: $fallbackError',
+      );
+    }
+  }
 }
