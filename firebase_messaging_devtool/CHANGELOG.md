@@ -1,3 +1,7 @@
+## 0.1.1
+
+* Fixed typo in link to screenshot
+
 ## 0.1.0
 
 ### Major Improvements
