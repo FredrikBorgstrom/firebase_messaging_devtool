@@ -80,6 +80,33 @@ That's all the code you need! The function automatically extracts all relevant i
 - Complete data payload
 - All available metadata
 
+## Example
+
+A complete example application is included in the `example` directory of this package. The example demonstrates:
+
+- Setting up Firebase Messaging with proper configuration
+- Implementing the DevTools integration
+- Displaying the FCM token for testing
+- Handling incoming messages
+
+To run the example:
+
+1. Navigate to the example directory:
+   ```bash
+   cd example
+   ```
+
+2. Update the Firebase configuration in `lib/main.dart` with your own project details.
+
+3. Run the example app:
+   ```bash
+   flutter run
+   ```
+
+4. Open DevTools to see incoming messages in real-time.
+
+Check out the `example/README.md` for more detailed instructions.
+
 ## Using the DevTools UI
 
 Once integrated, the extension provides a rich interface for inspecting your messages:

@@ -1,0 +1,23 @@
+# This file configures the analyzer to use the lint rule set from `package:flutter_lints`
+include: package:flutter_lints/flutter.yaml
+
+# Additional rules that are good practices but not included in flutter_lints
+linter:
+  rules:
+    - avoid_print
+    - avoid_unnecessary_containers
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_single_quotes
+    - sort_child_properties_last
+
+# Customize analyzer rules
+analyzer:
+  errors:
+    # Treat missing required parameters as errors rather than just hints
+    missing_required_param: error
+    # Treat missing returns as errors rather than just hints
+    missing_return: error
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart" 

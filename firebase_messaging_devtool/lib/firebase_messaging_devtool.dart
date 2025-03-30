@@ -68,7 +68,7 @@ void postFirebaseMessageToDevTools(RemoteMessage message) {
                           // Convert enum to string to avoid serialization issues
                           'priority':
                               message.notification!.android!.priority
-                                  ?.toString(),
+                                  .toString(),
                           'smallIcon': message.notification!.android!.smallIcon,
                           'sound': message.notification!.android!.sound,
                           'tag': message.notification!.android!.tag,
@@ -76,7 +76,7 @@ void postFirebaseMessageToDevTools(RemoteMessage message) {
                           // Convert enum to string to avoid serialization issues
                           'visibility':
                               message.notification!.android!.visibility
-                                  ?.toString(),
+                                  .toString(),
                         }
                         : null,
                 'apple':

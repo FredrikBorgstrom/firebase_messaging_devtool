@@ -1,3 +1,15 @@
+## 0.1.2
+
+* Added a complete example application to demonstrate best practices:
+  * Proper implementation of Firebase Messaging with DevTools integration
+  * Display of FCM token for testing purposes
+  * Comprehensive README with step-by-step instructions
+  * Well-structured project with appropriate configurations:
+    * Properly configured pubspec.yaml
+    * Analysis options for code quality
+    * Platform-specific configurations
+    * Basic test structure
+
 ## 0.1.1
 
 * Fixed typo in link to screenshot
