@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_messaging_devtool/firebase_messaging_devtool.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 // Firebase configuration placeholder - replace with your actual config
@@ -21,7 +22,9 @@ void main() async {
   // Set up the message handler with DevTools integration
   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
     // Forward the message to DevTools for inspection
-    postFirebaseMessageToDevTools(message);
+    if (kDebugMode) {
+      postFirebaseMessageToDevTools(message);
+    }
 
     // Continue with your normal message handling...
     print('Received message: ${message.notification?.title}');

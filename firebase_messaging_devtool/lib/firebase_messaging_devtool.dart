@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 
@@ -35,8 +36,14 @@ const String firebaseMessagingDevToolsEventKind =
 /// ```
 void postFirebaseMessageToDevTools(RemoteMessage message) {
   // Debug log
-  print(
-    'Firebase Messaging DevTool: Sending message to DevTools, ID: ${message.messageId}',
+  developer.log(
+    'Firebase Messaging DevTool: Sending message to DevTools',
+    name: 'FirebaseMessagingDevTool',
+    error: {
+      'messageId': message.messageId,
+      'notification': message.notification?.toMap(),
+      'data': message.data,
+    },
   );
 
   try {
@@ -45,6 +52,11 @@ void postFirebaseMessageToDevTools(RemoteMessage message) {
       // Basic message identification
       'messageId': message.messageId,
       'sentTime': message.sentTime?.toIso8601String(),
+
+      // Device identifier - use the actual platform information
+      'deviceId':
+          '${Platform.operatingSystem} (${Platform.operatingSystemVersion})',
+      'deviceName': Platform.localHostname,
 
       // Data payload (custom key-value pairs)
       'data': message.data,

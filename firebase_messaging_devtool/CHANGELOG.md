@@ -1,3 +1,13 @@
+## 0.2.0
+
+* **Bug Fixes**:
+  * Fixed "Clear All Messages" functionality to permanently delete stored messages
+  * Added device identifier to the title for better debugging with multiple devices
+
+* **New Features**:
+  * Added "Automatically clear messages on reload" option in settings
+  * Added debug wrapper around postFirebaseMessageToDevTools for better error handling
+
 ## 0.1.2
 
 * Added a complete example application to demonstrate best practices:

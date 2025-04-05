@@ -20,6 +20,9 @@ A Flutter DevTools extension that displays Firebase Cloud Messaging (FCM) events
 * **Message History**: Track all received messages during your debug session
 * **Raw View**: Access the complete JSON data when needed
 * **Extremely Simple Integration**: Just pass your Firebase RemoteMessage to a single function
+* **Device Identification**: See which device is receiving messages when debugging multiple devices
+* **Message Management**: Clear messages permanently or automatically on reload
+* **Debug Support**: Enhanced error handling and debugging capabilities
 
 ## Screenshots
 
@@ -61,11 +64,14 @@ The integration is now extremely simple:
    ```dart
    import 'package:firebase_messaging/firebase_messaging.dart';
    import 'package:firebase_messaging_devtool/firebase_messaging_devtool.dart';
+   import 'package:flutter/foundation.dart';
 
    void setupFirebaseMessagingListener() {
      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
        // Just pass the entire message directly to DevTools - that's it!
-       postFirebaseMessageToDevTools(message);
+       if (kDebugMode) {
+         postFirebaseMessageToDevTools(message);
+       }
 
        // Continue with your normal message handling...
      });

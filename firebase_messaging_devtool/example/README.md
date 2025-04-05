@@ -32,10 +32,16 @@ flutter run
 The integration with Firebase Messaging DevTool is simple:
 
 ```dart
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_messaging_devtool/firebase_messaging_devtool.dart';
+import 'package:flutter/foundation.dart';
+
 // Set up the message handler with DevTools integration
 FirebaseMessaging.onMessage.listen((RemoteMessage message) {
   // Forward the message to DevTools for inspection
-  postFirebaseMessageToDevTools(message);
+  if (kDebugMode) {
+    postFirebaseMessageToDevTools(message);
+  }
   
   // Continue with your normal message handling...
   print('Received message: ${message.notification?.title}');

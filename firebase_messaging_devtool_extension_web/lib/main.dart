@@ -3,7 +3,13 @@ import 'dart:convert';
 
 import 'package:devtools_extensions/devtools_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vm_service/vm_service.dart' show Event; // Import for Event
+
+// Storage keys
+const _messagesStorageKey = 'firebase_messaging_devtool_messages';
+const _showNewestOnTopKey = 'firebase_messaging_devtool_show_newest_on_top';
+const _autoClearOnReloadKey = 'firebase_messaging_devtool_auto_clear_on_reload';
 
 void main() {
   runApp(const FirebaseMessagingDevToolsExtension());
@@ -143,11 +149,19 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
   late TabController _tabController;
   // Setting for message order preference
   bool _showNewestOnTop = false;
+  // Setting for auto-clear on reload
+  bool _autoClearOnReload = false;
+  // Device identifier
+  String _deviceIdentifier = '';
+  // SharedPreferences instance
+  late SharedPreferences _prefs;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _initSharedPreferences();
+    _setDeviceIdentifier();
     // Call the async function to set up the listener
     _initServiceListener();
   }
@@ -158,6 +172,71 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     _eventSubscription?.cancel();
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initSharedPreferences() async {
+    _prefs = await SharedPreferences.getInstance();
+    _loadSettings();
+    _loadMessages();
+  }
+
+  void _loadSettings() {
+    _showNewestOnTop = _prefs.getBool(_showNewestOnTopKey) ?? false;
+    _autoClearOnReload = _prefs.getBool(_autoClearOnReloadKey) ?? false;
+  }
+
+  void _saveSettings() {
+    _prefs.setBool(_showNewestOnTopKey, _showNewestOnTop);
+    _prefs.setBool(_autoClearOnReloadKey, _autoClearOnReload);
+  }
+
+  void _loadMessages() {
+    if (_autoClearOnReload) {
+      _clearMessagesFromStorage();
+      return;
+    }
+
+    final messagesJson = _prefs.getString(_messagesStorageKey);
+    if (messagesJson != null) {
+      try {
+        final List<dynamic> messagesList = json.decode(messagesJson);
+        setState(() {
+          _messages.clear();
+          _messages.addAll(
+            messagesList.map((json) => FirebaseMessage.fromJson(json)),
+          );
+        });
+      } catch (e) {
+        print('Error loading messages from storage: $e');
+        _clearMessagesFromStorage();
+      }
+    }
+  }
+
+  void _saveMessages() {
+    final messagesJson = json.encode(
+      _messages.map((msg) => msg.originalJson).toList(),
+    );
+    _prefs.setString(_messagesStorageKey, messagesJson);
+  }
+
+  void _clearMessagesFromStorage() {
+    _prefs.remove(_messagesStorageKey);
+  }
+
+  // Modify the message clearing function
+  void _clearMessages() {
+    setState(() {
+      _messages.clear();
+      _clearMessagesFromStorage();
+    });
+  }
+
+  void _setDeviceIdentifier() {
+    // This is just a fallback, the actual device info will come from the message
+    setState(() {
+      _deviceIdentifier = 'Waiting for messages...';
+    });
   }
 
   // Async function to wait for the service and set up the listener
@@ -176,49 +255,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
 
         if (event.extensionKind == 'ext.firebase_messaging.message') {
           print('Firebase Messaging DevTool: Received firebase message event!');
-          try {
-            // Assuming the event data is a Map
-            final messageData = event.extensionData?.data;
-            print('Firebase Messaging DevTool: Message data: $messageData');
-
-            if (messageData != null && messageData is Map) {
-              // Convert the data (which might have non-JSON-primitive types)
-              // to a JSON-encodable map.
-              final jsonEncodableMap = _convertToJsonEncodable(messageData);
-              print('Firebase Messaging DevTool: Converted JSON map');
-
-              // Create a message object
-              final message = FirebaseMessage.fromJson(jsonEncodableMap);
-              print(
-                'Firebase Messaging DevTool: Created message object with ID: ${message.messageId}',
-              );
-
-              // Use setState to update the UI
-              if (mounted) {
-                // Check if the widget is still in the tree
-                setState(() {
-                  // Add message based on user preference setting
-                  if (_showNewestOnTop) {
-                    _messages.insert(0, message); // Add newest messages first
-                  } else {
-                    _messages.add(message); // Add newest messages at the end
-                  }
-                  print(
-                    'Firebase Messaging DevTool: Added message to list, total count: ${_messages.length}',
-                  );
-                });
-              }
-            } else {
-              print(
-                'Firebase Messaging DevTool: Message data is null or not a Map: $messageData',
-              );
-            }
-          } catch (e) {
-            // Log errors during message processing
-            // Consider showing an error in the DevTools UI as well
-            print('Error processing Firebase message event: $e');
-            print('Received data: ${event.extensionData?.data}');
-          }
+          _handleMessageEvent(event);
         }
       },
       onError: (error) {
@@ -230,13 +267,56 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
         print('Extension event stream closed.');
       },
     );
+  }
 
-    // Example: Post an event *from* the extension to the app (if needed)
-    // You might use this for requesting data or controlling the app
-    // serviceManager.postEventToClient(
-    //   'ext.firebase_messaging.command', // Use your specific event kind
-    //   {'command': 'requestData'},
-    // );
+  void _handleMessageEvent(Event event) {
+    try {
+      final Map<String, dynamic> messageData =
+          event.extensionData?.data as Map<String, dynamic>;
+      print('Firebase Messaging DevTool: Message data: $messageData');
+
+      if (messageData != null) {
+        // Convert the data to a JSON-encodable map
+        final jsonEncodableMap = _convertToJsonEncodable(messageData);
+        print('Firebase Messaging DevTool: Converted JSON map');
+
+        // Create a message object
+        final message = FirebaseMessage.fromJson(jsonEncodableMap);
+        print(
+          'Firebase Messaging DevTool: Created message object with ID: ${message.messageId}',
+        );
+
+        // Update device identifier from the message
+        if (messageData.containsKey('deviceId') &&
+            messageData.containsKey('deviceName')) {
+          setState(() {
+            _deviceIdentifier =
+                '${messageData['deviceId']} - ${messageData['deviceName']}';
+          });
+        }
+
+        // Use setState to update the UI
+        if (mounted) {
+          setState(() {
+            // Add message based on user preference setting
+            if (_showNewestOnTop) {
+              _messages.insert(0, message);
+            } else {
+              _messages.add(message);
+            }
+            print(
+              'Firebase Messaging DevTool: Added message to list, total count: ${_messages.length}',
+            );
+            _saveMessages();
+          });
+        }
+      } else {
+        print('Firebase Messaging DevTool: Message data is null');
+      }
+    } catch (e) {
+      print('Error handling Firebase message event: $e');
+      print('Received data: ${event.extensionData?.data}');
+    }
   }
 
   // Helper to convert potentially complex map data to something JSON encodable
@@ -286,7 +366,19 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Firebase Messages'),
+        title: Row(
+          children: [
+            const Text('Firebase Messages'),
+            const SizedBox(width: 8),
+            Text(
+              'for $_deviceIdentifier',
+              style: TextStyle(
+                fontSize: 14,
+                color: isDarkMode ? Colors.grey[300] : Colors.grey[100],
+              ),
+            ),
+          ],
+        ),
         backgroundColor: isDarkMode ? Colors.grey[850] : Colors.blue,
         foregroundColor: Colors.white,
         bottom: TabBar(
@@ -302,11 +394,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
         children: [_buildMessagesTab(), _buildSettingsTab()],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          setState(() {
-            _messages.clear(); // Clear the message list
-          });
-        },
+        onPressed: _clearMessages,
         tooltip: 'Clear Messages',
         backgroundColor: isDarkMode ? Colors.blue[700] : Colors.blue,
         foregroundColor: Colors.white,
@@ -989,13 +1077,41 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
                         onChanged: (value) {
                           setState(() {
                             _showNewestOnTop = value;
-                            // Reverse the current message list to match the new order preference
+                            _saveSettings();
                             if (_messages.isNotEmpty) {
                               final reversedMessages =
                                   _messages.reversed.toList();
                               _messages.clear();
                               _messages.addAll(reversedMessages);
+                              _saveMessages();
                             }
+                          });
+                        },
+                        activeColor:
+                            isDarkMode ? Colors.lightBlue : Colors.blue,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Automatically clear messages on reload',
+                          style: TextStyle(
+                            color:
+                                isDarkMode
+                                    ? Colors.grey[300]
+                                    : Colors.grey[700],
+                          ),
+                        ),
+                      ),
+                      Switch(
+                        value: _autoClearOnReload,
+                        onChanged: (value) {
+                          setState(() {
+                            _autoClearOnReload = value;
+                            _saveSettings();
                           });
                         },
                         activeColor:
@@ -1028,11 +1144,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        _messages.clear();
-                      });
-                    },
+                    onPressed: _clearMessages,
                     icon: const Icon(Icons.delete_sweep),
                     label: const Text('Clear All Messages'),
                     style: ElevatedButton.styleFrom(
@@ -1072,7 +1184,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Version: 0.1.0',
+                    'Version: 0.2.0',
                     style: TextStyle(
                       fontStyle: FontStyle.italic,
                       color: isDarkMode ? Colors.grey[400] : Colors.grey[600],

@@ -36,6 +36,8 @@ Instead do this:
 Run this command from the 'firebase_messaging_devtool_extension_web' directory:
 `dart run devtools_extensions build_and_copy --source=. --dest=../firebase_messaging_devtool/extension/devtools/build`
 
+`cd firebase_messaging_devtool_extension_web && dart run devtools_extensions build_and_copy --source=. --dest=../firebase_messaging_devtool/extension/devtools/build && cd ..`
+
 
 Update the version in firebase_messaging_devtool/pubspec.yaml.
 Update firebase_messaging_devtool/CHANGELOG.md to describe the changes for the new version.

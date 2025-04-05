@@ -1,0 +1,22 @@
+{
+   // See https://go.microsoft.com/fwlink/?LinkId=733558
+   // for the documentation about the tasks.json format
+   "version": "2.0.0",
+   "tasks": [
+      {
+         "label": "echo",
+         "type": "shell",
+         "command": "echo Hello"
+      },
+      {
+         "label": "build",
+         "type": "shell",
+         "command": "cd firebase_messaging_devtool_extension_web && dart run devtools_extensions build_and_copy --source=. --dest=../firebase_messaging_devtool/extension/devtools && cd .."
+      },
+      {
+         "label": "publish",
+         "type": "shell",
+         "command": "dart pub publish"
+      }
+   ]
+}
