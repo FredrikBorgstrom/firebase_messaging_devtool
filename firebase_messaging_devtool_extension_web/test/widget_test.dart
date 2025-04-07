@@ -5,7 +5,7 @@
 // gestures. You can also use WidgetTester to find child widgets in the widget
 // tree, read text, and verify that the values of widget properties are correct.
 
-import 'package:firebase_messaging_devtool_extension_web/main.dart';
+import 'package:firebase_messaging_devtool_extension_web/src/app.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

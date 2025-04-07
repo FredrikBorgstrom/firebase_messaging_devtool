@@ -16,7 +16,7 @@
       {
          "label": "build with sourcemaps",
          "type": "shell",
-         "command": "cd firebase_messaging_devtool_extension_web && flutter build web --csp &&  cd .."
+         "command": "cd firebase_messaging_devtool_extension_web && flutter build web --csp --source-maps --debug --optimization-level=0 --pwa-strategy=none && cp -r ./build/web/. ../firebase_messaging_devtool/extension/devtools/build && cd .."
       },
       {
          "label": "publish",
