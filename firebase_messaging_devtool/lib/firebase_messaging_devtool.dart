@@ -1,14 +1,15 @@
 import 'dart:developer' as developer;
-import 'dart:io';
+import 'dart:io' show Platform;
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 /// The event kind used to send Firebase message data to the DevTools extension.
 ///
 /// Users of this package should not need to reference this directly if using
 /// the [postFirebaseMessageToDevTools] helper function.
-const String firebaseMessagingDevToolsEventKind =
-    'ext.firebase_messaging.message';
+const String firebaseMessagingDevToolsEventKind = 'FirebaseMessage';
 
 /// Posts a Firebase message to the Firebase Messaging DevTools extension.
 ///
@@ -27,164 +28,83 @@ const String firebaseMessagingDevToolsEventKind =
 ///
 /// void setupFirebaseMessagingListener() {
 ///   FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-///     // Just pass the RemoteMessage directly to DevTools
-///     postFirebaseMessageToDevTools(message);
-///
-///     // Continue with your normal message handling...
+///     if (kDebugMode) {
+///       postFirebaseMessageToDevTools(message);
+///     }
 ///   });
 /// }
 /// ```
-void postFirebaseMessageToDevTools(RemoteMessage message) {
-  // Debug log
-  developer.log(
-    'Firebase Messaging DevTool: Sending message to DevTools',
-    name: 'FirebaseMessagingDevTool',
-    error: {
-      'messageId': message.messageId,
-      'notification': message.notification?.toMap(),
-      'data': message.data,
-    },
-  );
+Future<void> postFirebaseMessageToDevTools(RemoteMessage message) async {
+  if (!kDebugMode) return;
 
   try {
-    // Extract all useful information from the RemoteMessage
-    final Map<String, dynamic> messageData = {
-      // Basic message identification
-      'messageId': message.messageId,
-      'sentTime': message.sentTime?.toIso8601String(),
+    // Get device information using device_info_plus
+    final deviceInfoPlugin = DeviceInfoPlugin();
+    String deviceId = 'unknown-device';
+    String deviceName = 'Unknown Device';
 
-      // Device identifier - use the actual platform information
-      'deviceId':
-          '${Platform.operatingSystem} (${Platform.operatingSystemVersion})',
-      'deviceName': Platform.localHostname,
+    if (kIsWeb) {
+      // Web platform
+      final webInfo = await deviceInfoPlugin.webBrowserInfo;
+      deviceId = 'web-${webInfo.browserName.toString().toLowerCase()}';
+      deviceName = '${webInfo.browserName} on ${webInfo.platform}';
+    } else if (Platform.isAndroid) {
+      // Android platform
+      final androidInfo = await deviceInfoPlugin.androidInfo;
+      deviceId = androidInfo.id;
+      deviceName = androidInfo.model;
+    } else if (Platform.isIOS) {
+      // iOS platform
+      final iosInfo = await deviceInfoPlugin.iosInfo;
+      deviceId = iosInfo.identifierForVendor ?? 'unknown-ios';
+      deviceName = iosInfo.utsname.machine;
+    } else if (Platform.isMacOS) {
+      // macOS platform
+      final macOsInfo = await deviceInfoPlugin.macOsInfo;
+      deviceId = macOsInfo.systemGUID ?? 'unknown-macos';
+      deviceName = '${macOsInfo.computerName} (macOS ${macOsInfo.osRelease})';
+    } else if (Platform.isWindows) {
+      // Windows platform
+      final windowsInfo = await deviceInfoPlugin.windowsInfo;
+      deviceId = windowsInfo.deviceId;
+      deviceName = '${windowsInfo.computerName} (Windows)';
+    } else if (Platform.isLinux) {
+      // Linux platform
+      final linuxInfo = await deviceInfoPlugin.linuxInfo;
+      deviceId = linuxInfo.machineId ?? 'unknown-linux';
+      deviceName = linuxInfo.prettyName;
+    } else {
+      // Fallback for other platforms
+      deviceId = 'device-${DateTime.now().millisecondsSinceEpoch}';
+      deviceName = 'Unknown Platform';
+    }
 
-      // Data payload (custom key-value pairs)
+    final messageData = {
+      'notification': message.notification?.toMap(),
       'data': message.data,
-
-      // Notification details
-      'notification':
-          message.notification != null
-              ? {
-                'title': message.notification!.title,
-                'body': message.notification!.body,
-                'android':
-                    message.notification!.android != null
-                        ? {
-                          'channelId': message.notification!.android!.channelId,
-                          'clickAction':
-                              message.notification!.android!.clickAction,
-                          'color': message.notification!.android!.color,
-                          'count': message.notification!.android!.count,
-                          'imageUrl': message.notification!.android!.imageUrl,
-                          'link': message.notification!.android!.link,
-                          // Convert enum to string to avoid serialization issues
-                          'priority':
-                              message.notification!.android!.priority
-                                  .toString(),
-                          'smallIcon': message.notification!.android!.smallIcon,
-                          'sound': message.notification!.android!.sound,
-                          'tag': message.notification!.android!.tag,
-                          'ticker': message.notification!.android!.ticker,
-                          // Convert enum to string to avoid serialization issues
-                          'visibility':
-                              message.notification!.android!.visibility
-                                  .toString(),
-                        }
-                        : null,
-                'apple':
-                    message.notification!.apple != null
-                        ? {
-                          'badge': message.notification!.apple!.badge,
-                          'subtitle': message.notification!.apple!.subtitle,
-                          'sound':
-                              message.notification!.apple!.sound != null
-                                  ? {
-                                    'critical':
-                                        message
-                                            .notification!
-                                            .apple!
-                                            .sound!
-                                            .critical,
-                                    'name':
-                                        message
-                                            .notification!
-                                            .apple!
-                                            .sound!
-                                            .name,
-                                    'volume':
-                                        message
-                                            .notification!
-                                            .apple!
-                                            .sound!
-                                            .volume,
-                                  }
-                                  : null,
-                          'imageUrl': message.notification!.apple!.imageUrl,
-                        }
-                        : null,
-                'web':
-                    message.notification!.web != null
-                        ? {
-                          'analyticsLabel':
-                              message.notification!.web!.analyticsLabel,
-                          'image': message.notification!.web!.image,
-                          'link': message.notification!.web!.link,
-                        }
-                        : null,
-              }
-              : null,
-
-      // Message metadata
-      'category': message.category,
-      'collapseKey': message.collapseKey,
-      'contentAvailable': message.contentAvailable,
       'from': message.from,
-      'messageType': message.messageType,
-      'mutableContent': message.mutableContent,
-      'threadId': message.threadId,
+      'messageId': message.messageId,
+      'sentTime': message.sentTime?.millisecondsSinceEpoch,
       'ttl': message.ttl,
-
-      // Timestamp information
-      'receivedAt':
-          DateTime.now().toIso8601String(), // When the app received the message
+      'collapseKey': message.collapseKey,
+      'deviceId': deviceId,
+      'deviceName': deviceName,
     };
 
-    print(
-      'Firebase Messaging DevTool: Posting event with kind: $firebaseMessagingDevToolsEventKind',
-    );
     developer.postEvent(firebaseMessagingDevToolsEventKind, messageData);
-    print('Firebase Messaging DevTool: Event posted successfully');
+    developer.log(
+      'Firebase Messaging DevTool: Message posted to DevTools with event kind: $firebaseMessagingDevToolsEventKind',
+      name: 'FirebaseMessagingDevTool',
+    );
+    developer.log(
+      'Device info: $deviceName ($deviceId)',
+      name: 'FirebaseMessagingDevTool',
+    );
   } catch (e) {
-    print('Firebase Messaging DevTool: Error posting event: $e');
-
-    // Try to send a simplified version of the message if the detailed version fails
-    try {
-      // Create a simplified version with just the basic fields
-      final Map<String, dynamic> simplifiedMessage = {
-        'messageId': message.messageId,
-        'sentTime': message.sentTime?.toIso8601String(),
-        'data': message.data,
-        'notification':
-            message.notification != null
-                ? {
-                  'title': message.notification!.title,
-                  'body': message.notification!.body,
-                }
-                : null,
-        'error': 'Original message contained non-serializable types: $e',
-        'receivedAt': DateTime.now().toIso8601String(),
-      };
-
-      print('Firebase Messaging DevTool: Trying simplified message instead');
-      developer.postEvent(
-        firebaseMessagingDevToolsEventKind,
-        simplifiedMessage,
-      );
-      print('Firebase Messaging DevTool: Simplified message sent successfully');
-    } catch (fallbackError) {
-      print(
-        'Firebase Messaging DevTool: Even simplified message failed: $fallbackError',
-      );
-    }
+    developer.log(
+      'Error posting message to DevTools: $e',
+      name: 'FirebaseMessagingDevTool',
+      error: e,
+    );
   }
 }

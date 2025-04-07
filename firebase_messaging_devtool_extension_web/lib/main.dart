@@ -1,15 +1,17 @@
 import 'dart:async'; // Import for StreamSubscription
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:devtools_extensions/devtools_extensions.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vm_service/vm_service.dart' show Event; // Import for Event
+import 'package:web/web.dart' as web; // Use package:web instead of dart:html
 
-// Storage keys
-const _messagesStorageKey = 'firebase_messaging_devtool_messages';
-const _showNewestOnTopKey = 'firebase_messaging_devtool_show_newest_on_top';
-const _autoClearOnReloadKey = 'firebase_messaging_devtool_auto_clear_on_reload';
+// Storage keys - using namespaced keys to avoid conflicts
+const String _storageKeyPrefix = 'com.firebase_messaging_devtool.';
+const String _messagesStorageKey = '${_storageKeyPrefix}messages';
+const String _showNewestOnTopKey = '${_storageKeyPrefix}show_newest_on_top';
+const String _autoClearOnReloadKey = '${_storageKeyPrefix}auto_clear_on_reload';
 
 void main() {
   runApp(const FirebaseMessagingDevToolsExtension());
@@ -52,14 +54,24 @@ class FirebaseMessage {
     final metadata = <String, dynamic>{};
 
     try {
+      developer.log(
+        'Converting message from JSON: ${json.keys.join(', ')}',
+        name: 'FirebaseMessagingDevTool',
+      );
+
       // Extract notification
       if (json.containsKey('notification') && json['notification'] != null) {
         final notificationData = json['notification'];
         if (notificationData is Map) {
           notification.addAll(Map<String, dynamic>.from(notificationData));
+          developer.log(
+            'Extracted notification fields: ${notification.keys.join(', ')}',
+            name: 'FirebaseMessagingDevTool',
+          );
         } else {
-          print(
-            'Firebase Messaging DevTool: notification is not a Map: $notificationData',
+          developer.log(
+            'Notification is not a Map: $notificationData',
+            name: 'FirebaseMessagingDevTool',
           );
         }
       }
@@ -69,42 +81,64 @@ class FirebaseMessage {
         final dataPayload = json['data'];
         if (dataPayload is Map) {
           data.addAll(Map<String, dynamic>.from(dataPayload));
+          developer.log(
+            'Extracted data payload fields: ${data.keys.join(', ')}',
+            name: 'FirebaseMessagingDevTool',
+          );
         } else {
-          print('Firebase Messaging DevTool: data is not a Map: $dataPayload');
+          developer.log(
+            'Data payload is not a Map: $dataPayload',
+            name: 'FirebaseMessagingDevTool',
+          );
         }
       }
 
       // Extract metadata (everything that's not notification or data)
       for (final entry in json.entries) {
         if (entry.key != 'notification' && entry.key != 'data') {
-          if (entry.key == 'sentTime' && entry.value is String) {
-            // Don't add sentTime to metadata as we handle it separately
+          if (entry.key == 'sentTime') {
+            // Handle sentTime specially below
           } else {
             metadata[entry.key] = entry.value;
           }
         }
       }
 
+      developer.log(
+        'Extracted metadata fields: ${metadata.keys.join(', ')}',
+        name: 'FirebaseMessagingDevTool',
+      );
+
       // Parse sentTime if available
       DateTime? sentTime;
       if (json.containsKey('sentTime') && json['sentTime'] != null) {
         try {
-          if (json['sentTime'] is String) {
-            sentTime = DateTime.parse(json['sentTime'] as String);
+          final sentTimeValue = json['sentTime'];
+          if (sentTimeValue is String) {
+            sentTime = DateTime.parse(sentTimeValue);
+          } else if (sentTimeValue is int) {
+            sentTime = DateTime.fromMillisecondsSinceEpoch(sentTimeValue);
           }
+
+          developer.log(
+            'Parsed sentTime: $sentTime from value type: ${sentTimeValue.runtimeType}',
+            name: 'FirebaseMessagingDevTool',
+          );
         } catch (e) {
-          print(
-            'Firebase Messaging DevTool: Failed to parse sentTime: ${json['sentTime']}',
+          developer.log(
+            'Failed to parse sentTime: ${json['sentTime']}',
+            name: 'FirebaseMessagingDevTool',
+            error: e,
           );
           // Leave sentTime as null if parsing fails
         }
       }
 
       final String messageId = (json['messageId'] as String?) ?? 'unknown';
-      print('Firebase Messaging DevTool: Creating message with ID: $messageId');
-      print('Firebase Messaging DevTool: notification: $notification');
-      print('Firebase Messaging DevTool: data: $data');
-      print('Firebase Messaging DevTool: metadata: $metadata');
+      developer.log(
+        'Creating message with ID: $messageId',
+        name: 'FirebaseMessagingDevTool',
+      );
 
       return FirebaseMessage(
         messageId: messageId,
@@ -114,9 +148,12 @@ class FirebaseMessage {
         metadata: metadata,
         originalJson: json,
       );
-    } catch (e) {
-      print(
-        'Firebase Messaging DevTool: Error in FirebaseMessage.fromJson: $e',
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error in FirebaseMessage.fromJson: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
       );
       // Return a fallback message if parsing fails
       return FirebaseMessage(
@@ -153,16 +190,20 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
   bool _autoClearOnReload = false;
   // Device identifier
   String _deviceIdentifier = '';
-  // SharedPreferences instance
-  late SharedPreferences _prefs;
+  // Flag to prevent saves during clear operations
+  bool _isClearing = false;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _initSharedPreferences();
+
+    // --- CRITICAL: Apply auto-clear BEFORE anything else ---
+    _applyAutoClearIfNeededAtStartup();
+
+    // Now load settings (which might include the auto-clear state itself)
+    _loadSettings();
     _setDeviceIdentifier();
-    // Call the async function to set up the listener
     _initServiceListener();
   }
 
@@ -174,62 +215,312 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     super.dispose();
   }
 
-  Future<void> _initSharedPreferences() async {
-    _prefs = await SharedPreferences.getInstance();
-    _loadSettings();
-    _loadMessages();
+  /// Checks the auto-clear setting AT STARTUP and forces storage clear if needed.
+  /// This runs before any other loading logic.
+  void _applyAutoClearIfNeededAtStartup() {
+    try {
+      final autoClearOnReloadStr = web.window.localStorage.getItem(
+        _autoClearOnReloadKey,
+      ); // Use web.window
+      developer.log(
+        '[Startup Check] Auto-clear setting from storage: $autoClearOnReloadStr',
+        name: 'FirebaseMessagingDevTool',
+      );
+      if (autoClearOnReloadStr == 'true') {
+        developer.log(
+          '[Startup Check] Auto-clear is TRUE. Forcing message clear NOW.',
+          name: 'FirebaseMessagingDevTool',
+        );
+        _forceClearMessageStorage(); // Clear storage
+
+        // --- Explicitly clear in-memory list as well ---
+        _messages.clear();
+        developer.log(
+          '[Startup Check] Cleared in-memory _messages list.',
+          name: 'FirebaseMessagingDevTool',
+        );
+        // --- End ---
+      } else {
+        developer.log(
+          '[Startup Check] Auto-clear is FALSE or not set. Messages will be loaded if present.',
+          name: 'FirebaseMessagingDevTool',
+        );
+      }
+    } catch (e) {
+      developer.log(
+        'Error during startup auto-clear check: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+      );
+    }
   }
 
-  void _loadSettings() {
-    _showNewestOnTop = _prefs.getBool(_showNewestOnTopKey) ?? false;
-    _autoClearOnReload = _prefs.getBool(_autoClearOnReloadKey) ?? false;
+  Future<void> _loadSettings() async {
+    try {
+      // Load settings state from localStorage using package:web
+      final showNewestOnTopStr = web.window.localStorage.getItem(
+        _showNewestOnTopKey,
+      );
+      final autoClearOnReloadStr = web.window.localStorage.getItem(
+        _autoClearOnReloadKey,
+      );
+
+      // Update state variables (without triggering immediate clears)
+      if (mounted) {
+        // Ensure the widget is still mounted
+        setState(() {
+          _showNewestOnTop = showNewestOnTopStr == 'true';
+          _autoClearOnReload = autoClearOnReloadStr == 'true';
+        });
+      }
+
+      developer.log(
+        'Settings loaded: showNewest=$_showNewestOnTop, autoClear=$_autoClearOnReload',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      // Load messages ONLY if auto-clear is currently disabled
+      if (!_autoClearOnReload) {
+        _loadMessages();
+      } else {
+        developer.log(
+          'Skipping _loadMessages because auto-clear is enabled.',
+          name: 'FirebaseMessagingDevTool',
+        );
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error loading settings: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
-  void _saveSettings() {
-    _prefs.setBool(_showNewestOnTopKey, _showNewestOnTop);
-    _prefs.setBool(_autoClearOnReloadKey, _autoClearOnReload);
+  /// Forcefully clears message data using multiple methods, prioritizing standard web APIs.
+  /// Does NOT call setState directly for memory clear anymore, handled by caller.
+  Future<void> _forceClearMessageStorage() async {
+    // Make async
+    final key = _messagesStorageKey;
+    developer.log(
+      '[Force Clear] Attempting web API clear for key: $key',
+      name: 'FirebaseMessagingDevTool',
+    );
+    bool cleared = false;
+    try {
+      // --- Log value BEFORE attempting clear ---
+      var valueBefore = web.window.localStorage.getItem(key); // Use web API
+      developer.log(
+        '[Force Clear] Value BEFORE clear attempts: "$valueBefore"',
+        name: 'FirebaseMessagingDevTool',
+      );
+      if (valueBefore == null) {
+        developer.log(
+          '[Force Clear] Storage was already null before clearing.',
+          name: 'FirebaseMessagingDevTool',
+        );
+        cleared = true; // Already clear
+      } else {
+        // --- Method 1: Standard web API removeItem ---
+        web.window.localStorage.removeItem(key); // Use web API
+        developer.log(
+          '[Force Clear] Executed web localStorage.removeItem("$key")',
+          name: 'FirebaseMessagingDevTool',
+        );
+        var valueAfterRemove = web.window.localStorage.getItem(
+          key,
+        ); // Use web API
+        developer.log(
+          '[Force Clear] Value immediately AFTER removeItem: "$valueAfterRemove"',
+          name: 'FirebaseMessagingDevTool',
+        );
+
+        // --- Verification 1 ---
+        if (valueAfterRemove == null) {
+          developer.log(
+            '[Force Clear] VERIFIED: web removeItem successful. Key is null.',
+            name: 'FirebaseMessagingDevTool',
+          );
+          cleared = true;
+        } else {
+          developer.log(
+            '[Force Clear] web removeItem failed or key persisted. Trying web setItem...',
+            name: 'FirebaseMessagingDevTool',
+          );
+
+          // --- Method 2: Standard web API setItem to empty array ---
+          web.window.localStorage.setItem(key, '[]'); // Use web API
+          developer.log(
+            '[Force Clear] Executed web localStorage.setItem("$key", "[]")',
+            name: 'FirebaseMessagingDevTool',
+          );
+          var valueAfterSetEmpty = web.window.localStorage.getItem(
+            key,
+          ); // Use web API
+          developer.log(
+            '[Force Clear] Value immediately AFTER setItem([]): "$valueAfterSetEmpty"',
+            name: 'FirebaseMessagingDevTool',
+          );
+
+          // --- Verification 2 ---
+          if (valueAfterSetEmpty == '[]') {
+            developer.log(
+              '[Force Clear] VERIFIED: web setItem to [] successful.',
+              name: 'FirebaseMessagingDevTool',
+            );
+            cleared = true;
+          } else {
+            developer.log(
+              '[Force Clear] FATAL: ALL web API CLEARING METHODS FAILED! Final getItem value: "$valueAfterSetEmpty"',
+              name: 'FirebaseMessagingDevTool',
+            );
+          }
+        }
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        '[Force Clear] Error during web API storage clear: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      // Add a small delay to potentially allow storage persistence
+      await Future.delayed(const Duration(milliseconds: 100));
+      developer.log(
+        '[Force Clear] Completed (cleared=$cleared) after delay.',
+        name: 'FirebaseMessagingDevTool',
+      );
+    }
   }
 
   void _loadMessages() {
-    if (_autoClearOnReload) {
-      _clearMessagesFromStorage();
+    developer.log(
+      '[LoadMessages] Starting. AutoClear=$_autoClearOnReload',
+      name: 'FirebaseMessagingDevTool',
+    );
+    try {
+      // Double-check auto-clear just in case
+      if (_autoClearOnReload) {
+        developer.log(
+          '[LoadMessages] Auto-clear is ON. Aborting load.',
+          name: 'FirebaseMessagingDevTool',
+        );
+        // Ensure in-memory is clear too if we reach here unexpectedly
+        if (_messages.isNotEmpty && mounted) {
+          setState(() => _messages.clear());
+        }
+        return;
+      }
+
+      final messagesJson = web.window.localStorage.getItem(
+        _messagesStorageKey,
+      ); // Use web.window
+      if (messagesJson != null && messagesJson.isNotEmpty) {
+        developer.log(
+          '[LoadMessages] Found JSON string in storage: ${messagesJson.substring(0, (messagesJson.length > 100 ? 100 : messagesJson.length))}...',
+          name: 'FirebaseMessagingDevTool',
+        );
+        // --- Deserialize and Update State ---
+        try {
+          final List<dynamic> decodedList = json.decode(messagesJson);
+          final List<FirebaseMessage> loadedMessages =
+              decodedList
+                  .map((jsonData) => FirebaseMessage.fromJson(jsonData))
+                  .toList();
+
+          developer.log(
+            '[LoadMessages] Parsed ${loadedMessages.length} messages from storage.',
+            name: 'FirebaseMessagingDevTool',
+          );
+
+          if (mounted) {
+            setState(() {
+              developer.log(
+                '[LoadMessages] Inside setState. Current _messages count: ${_messages.length}. Clearing now...',
+                name: 'FirebaseMessagingDevTool',
+              );
+              _messages.clear(); // Clear INSIDE setState
+              _messages.addAll(loadedMessages); // Add INSIDE setState
+              developer.log(
+                '[LoadMessages] Inside setState. Finished addAll. Final _messages count: ${_messages.length}.',
+                name: 'FirebaseMessagingDevTool',
+              );
+            });
+          } else {
+            developer.log(
+              '[LoadMessages] Widget not mounted, cannot update state with loaded messages.',
+              name: 'FirebaseMessagingDevTool',
+            );
+          }
+        } catch (e, stackTrace) {
+          developer.log(
+            '[LoadMessages] Error during deserialization/setState: $e',
+            name: 'FirebaseMessagingDevTool',
+            error: e,
+            stackTrace: stackTrace,
+          );
+          // Clear potentially corrupted storage on error
+          _forceClearMessageStorage();
+        }
+        // --- End Deserialize ---
+      } else {
+        developer.log(
+          '[LoadMessages] No message JSON found in storage or string is empty.',
+          name: 'FirebaseMessagingDevTool',
+        );
+      }
+    } catch (e, stackTrace) {
+      developer.log(
+        '[LoadMessages] Outer error: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<void> _saveMessages() async {
+    // --- Prevent saving during or immediately after a clear ---
+    if (_isClearing) {
+      developer.log(
+        '[SaveMessages] Skipping save because clear operation is in progress.',
+        name: 'FirebaseMessagingDevTool',
+      );
       return;
     }
 
-    final messagesJson = _prefs.getString(_messagesStorageKey);
-    if (messagesJson != null) {
-      try {
-        final List<dynamic> messagesList = json.decode(messagesJson);
-        setState(() {
-          _messages.clear();
-          _messages.addAll(
-            messagesList.map((json) => FirebaseMessage.fromJson(json)),
-          );
-        });
-      } catch (e) {
-        print('Error loading messages from storage: $e');
-        _clearMessagesFromStorage();
+    try {
+      // Don't save messages if auto-clear is enabled
+      if (_autoClearOnReload) {
+        developer.log(
+          'Skipping message save because auto-clear is enabled',
+          name: 'FirebaseMessagingDevTool',
+        );
+        return;
       }
+
+      final messagesJson = json.encode(
+        _messages.map((msg) => msg.originalJson).toList(),
+      );
+      web.window.localStorage.setItem(
+        _messagesStorageKey,
+        messagesJson,
+      ); // Use web.window
+
+      developer.log(
+        'Saved ${_messages.length} messages to localStorage',
+        name: 'FirebaseMessagingDevTool',
+      );
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error saving messages to localStorage: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
-  }
-
-  void _saveMessages() {
-    final messagesJson = json.encode(
-      _messages.map((msg) => msg.originalJson).toList(),
-    );
-    _prefs.setString(_messagesStorageKey, messagesJson);
-  }
-
-  void _clearMessagesFromStorage() {
-    _prefs.remove(_messagesStorageKey);
-  }
-
-  // Modify the message clearing function
-  void _clearMessages() {
-    setState(() {
-      _messages.clear();
-      _clearMessagesFromStorage();
-    });
   }
 
   void _setDeviceIdentifier() {
@@ -241,81 +532,141 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
 
   // Async function to wait for the service and set up the listener
   Future<void> _initServiceListener() async {
-    // Wait for the VM service connection to become available.
-    print('Firebase Messaging DevTool: Setting up event listener...');
-    final vmService = await serviceManager.onServiceAvailable;
-    print('Firebase Messaging DevTool: VM service is available');
+    try {
+      // Wait for the VM service connection to become available.
+      developer.log(
+        'Setting up event listener...',
+        name: 'FirebaseMessagingDevTool',
+      );
 
-    // Listen for events posted by the debugged application
-    _eventSubscription = vmService.onExtensionEvent.listen(
-      (event) {
-        print(
-          'Firebase Messaging DevTool: Received event kind: ${event.extensionKind}',
-        );
+      final vmService = await serviceManager.onServiceAvailable;
+      developer.log(
+        'VM service is available',
+        name: 'FirebaseMessagingDevTool',
+      );
 
-        if (event.extensionKind == 'ext.firebase_messaging.message') {
-          print('Firebase Messaging DevTool: Received firebase message event!');
-          _handleMessageEvent(event);
-        }
-      },
-      onError: (error) {
-        // Handle stream errors
-        print('Error listening to extension events: $error');
-      },
-      onDone: () {
-        // Handle stream closing (optional)
-        print('Extension event stream closed.');
-      },
-    );
+      // Register for FirebaseMessage events
+      await vmService.registerService(
+        'FirebaseMessage',
+        'ext.firebase_messaging.message',
+      );
+      developer.log(
+        'Registered for Firebase Messaging events',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      // Listen for events posted by the debugged application
+      _eventSubscription = vmService.onExtensionEvent.listen(
+        (event) {
+          developer.log(
+            'Received event kind: ${event.extensionKind}',
+            name: 'FirebaseMessagingDevTool',
+          );
+
+          // Accept both event kinds for backward compatibility
+          if (event.extensionKind == 'FirebaseMessage' ||
+              event.extensionKind == 'ext.firebase_messaging.message') {
+            developer.log(
+              'Received firebase message event!',
+              name: 'FirebaseMessagingDevTool',
+            );
+            _handleMessageEvent(event);
+          }
+        },
+        onError: (error) {
+          // Handle stream errors
+          developer.log(
+            'Error listening to extension events: $error',
+            name: 'FirebaseMessagingDevTool',
+            error: error,
+          );
+        },
+        onDone: () {
+          // Handle stream closing (optional)
+          developer.log(
+            'Extension event stream closed.',
+            name: 'FirebaseMessagingDevTool',
+          );
+        },
+      );
+
+      developer.log(
+        'Event listener setup complete',
+        name: 'FirebaseMessagingDevTool',
+      );
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error setting up service listener: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   void _handleMessageEvent(Event event) {
     try {
-      final Map<String, dynamic> messageData =
-          event.extensionData?.data as Map<String, dynamic>;
-      print('Firebase Messaging DevTool: Message data: $messageData');
+      developer.log(
+        'Processing event: ${event.extensionKind}',
+        name: 'FirebaseMessagingDevTool',
+      );
 
-      if (messageData != null) {
-        // Convert the data to a JSON-encodable map
-        final jsonEncodableMap = _convertToJsonEncodable(messageData);
-        print('Firebase Messaging DevTool: Converted JSON map');
-
-        // Create a message object
-        final message = FirebaseMessage.fromJson(jsonEncodableMap);
-        print(
-          'Firebase Messaging DevTool: Created message object with ID: ${message.messageId}',
+      final data = event.extensionData?.data as Map<String, dynamic>?;
+      if (data == null) {
+        developer.log(
+          'Received null data from event',
+          name: 'FirebaseMessagingDevTool',
         );
-
-        // Update device identifier from the message
-        if (messageData.containsKey('deviceId') &&
-            messageData.containsKey('deviceName')) {
-          setState(() {
-            _deviceIdentifier =
-                '${messageData['deviceId']} - ${messageData['deviceName']}';
-          });
-        }
-
-        // Use setState to update the UI
-        if (mounted) {
-          setState(() {
-            // Add message based on user preference setting
-            if (_showNewestOnTop) {
-              _messages.insert(0, message);
-            } else {
-              _messages.add(message);
-            }
-            print(
-              'Firebase Messaging DevTool: Added message to list, total count: ${_messages.length}',
-            );
-            _saveMessages();
-          });
-        }
-      } else {
-        print('Firebase Messaging DevTool: Message data is null');
+        return;
       }
-    } catch (e) {
-      print('Error handling Firebase message event: $e');
-      print('Received data: ${event.extensionData?.data}');
+
+      developer.log(
+        'Message data received: ${data.keys.join(', ')}',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      final message = FirebaseMessage.fromJson(data);
+      developer.log(
+        'Message parsed with ID: ${message.messageId}',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      // Update device identifier if available in the message
+      if (data['deviceId'] != null || data['deviceName'] != null) {
+        setState(() {
+          _deviceIdentifier =
+              '${data['deviceName'] ?? 'Unknown Device'} (${data['deviceId'] ?? 'unknown'})';
+        });
+        developer.log(
+          'Updated device identifier: $_deviceIdentifier',
+          name: 'FirebaseMessagingDevTool',
+        );
+      }
+
+      setState(() {
+        if (_showNewestOnTop) {
+          _messages.insert(0, message);
+        } else {
+          _messages.add(message);
+        }
+      });
+
+      // Schedule the save for after the state update completes, ONLY if not clearing
+      if (!_isClearing) {
+        Future.microtask(() => _saveMessages());
+      }
+
+      developer.log(
+        'Message added to list: ${message.messageId}, total count: ${_messages.length}',
+        name: 'FirebaseMessagingDevTool',
+      );
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error handling message event: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -394,7 +745,9 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
         children: [_buildMessagesTab(), _buildSettingsTab()],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _clearMessages,
+        onPressed: () async {
+          await _clearMessages();
+        },
         tooltip: 'Clear Messages',
         backgroundColor: isDarkMode ? Colors.blue[700] : Colors.blue,
         foregroundColor: Colors.white,
@@ -455,9 +808,10 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     // Calculate the display index based on the selected order
     final displayIndex =
         _showNewestOnTop
-            ? totalMessages -
-                index // For newest on top, newest = 1, 2, 3...
-            : index + 1; // For newest at bottom, oldest = 1, 2, 3...
+            ? index +
+                1 // For newest on top, newest = 1, 2, 3...
+            : totalMessages -
+                index; // For newest at bottom, oldest = 1, 2, 3...
 
     return Card(
       margin: const EdgeInsets.all(8.0),
@@ -1074,18 +1428,21 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
                       ),
                       Switch(
                         value: _showNewestOnTop,
-                        onChanged: (value) {
+                        onChanged: (value) async {
                           setState(() {
                             _showNewestOnTop = value;
-                            _saveSettings();
-                            if (_messages.isNotEmpty) {
+                          });
+                          await _saveSettings();
+
+                          if (_messages.isNotEmpty) {
+                            setState(() {
                               final reversedMessages =
                                   _messages.reversed.toList();
                               _messages.clear();
                               _messages.addAll(reversedMessages);
-                              _saveMessages();
-                            }
-                          });
+                            });
+                            await _saveMessages();
+                          }
                         },
                         activeColor:
                             isDarkMode ? Colors.lightBlue : Colors.blue,
@@ -1108,11 +1465,31 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
                       ),
                       Switch(
                         value: _autoClearOnReload,
-                        onChanged: (value) {
+                        onChanged: (value) async {
                           setState(() {
                             _autoClearOnReload = value;
-                            _saveSettings();
                           });
+                          await _saveSettings();
+
+                          // Show a snackbar to explain what will happen
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                value
+                                    ? 'Messages will be cleared when extension is reloaded'
+                                    : 'Messages will be preserved between reloads',
+                              ),
+                              duration: const Duration(seconds: 3),
+                              action: SnackBarAction(
+                                label: 'OK',
+                                onPressed: () {
+                                  ScaffoldMessenger.of(
+                                    context,
+                                  ).hideCurrentSnackBar();
+                                },
+                              ),
+                            ),
+                          );
                         },
                         activeColor:
                             isDarkMode ? Colors.lightBlue : Colors.blue,
@@ -1144,7 +1521,9 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton.icon(
-                    onPressed: _clearMessages,
+                    onPressed: () async {
+                      await _clearMessages();
+                    },
                     icon: const Icon(Icons.delete_sweep),
                     label: const Text('Clear All Messages'),
                     style: ElevatedButton.styleFrom(
@@ -1205,5 +1584,92 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
 
   String _twoDigits(int n) {
     return n.toString().padLeft(2, '0');
+  }
+
+  Future<void> _saveSettings() async {
+    try {
+      web.window.localStorage.setItem(
+        _showNewestOnTopKey,
+        _showNewestOnTop.toString(),
+      ); // Use web.window
+      web.window.localStorage.setItem(
+        _autoClearOnReloadKey,
+        _autoClearOnReload.toString(),
+      ); // Use web.window
+
+      developer.log(
+        'Settings saved to localStorage: showNewestOnTop=$_showNewestOnTop, autoClearOnReload=$_autoClearOnReload',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      // Don't clear messages immediately when auto-clear is enabled
+      // Messages will be cleared on next reload
+      developer.log(
+        'Auto-clear setting updated to: $_autoClearOnReload - will apply on next reload',
+        name: 'FirebaseMessagingDevTool',
+      );
+    } catch (e, stackTrace) {
+      developer.log(
+        'Error saving settings: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<void> _clearMessages() async {
+    _isClearing = true; // Set flag at the start
+    developer.log(
+      '[Manual Clear] Start. _isClearing = true',
+      name: 'FirebaseMessagingDevTool',
+    );
+    try {
+      // Clear in-memory messages FIRST
+      if (mounted) {
+        setState(() {
+          _messages.clear();
+          developer.log(
+            '[Manual Clear] Cleared in-memory messages.',
+            name: 'FirebaseMessagingDevTool',
+          );
+        });
+      }
+      // Force clear storage using the robust method (now async)
+      await _forceClearMessageStorage();
+      developer.log(
+        '[Manual Clear] Storage clear attempted.',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      // --- NEW: Force next session to auto-clear ---
+      try {
+        web.window.localStorage.setItem(_autoClearOnReloadKey, 'true');
+        developer.log(
+          '[Manual Clear] Set auto-clear flag in storage to TRUE for next session.',
+          name: 'FirebaseMessagingDevTool',
+        );
+      } catch (e) {
+        developer.log(
+          '[Manual Clear] Error setting auto-clear flag for next session: $e',
+          name: 'FirebaseMessagingDevTool',
+        );
+      }
+      // --- End NEW ---
+    } catch (e, stackTrace) {
+      developer.log(
+        '[Manual Clear] Error: $e',
+        name: 'FirebaseMessagingDevTool',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+    // NOTE: We intentionally DO NOT reset _isClearing = false here.
+    // This prevents saves for the rest of the current session after a manual clear.
+    developer.log(
+      '[Manual Clear] Finished. _isClearing remains true for this session.',
+      name: 'FirebaseMessagingDevTool',
+    );
+    // The finally block that reset _isClearing is removed.
   }
 }

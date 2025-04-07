@@ -10,19 +10,79 @@ and the Flutter guide for
 
 # Firebase Messaging DevTool
 
-A Flutter DevTools extension that displays Firebase Cloud Messaging (FCM) events in real-time, making it easier to debug and develop push notification functionality in your Flutter applications.
+A Flutter DevTools extension for inspecting Firebase Cloud Messaging (FCM) messages in real-time.
 
 ## Features
 
-* **Real-time Monitoring**: View incoming FCM messages sent to your app as they arrive
-* **Structured UI**: Messages are organized into tabbed sections (Notification, Data Payload, Metadata)
-* **Expandable Details**: Navigate complex message structures with expandable sections
-* **Message History**: Track all received messages during your debug session
-* **Raw View**: Access the complete JSON data when needed
-* **Extremely Simple Integration**: Just pass your Firebase RemoteMessage to a single function
-* **Device Identification**: See which device is receiving messages when debugging multiple devices
-* **Message Management**: Clear messages permanently or automatically on reload
-* **Debug Support**: Enhanced error handling and debugging capabilities
+- Real-time display of incoming FCM messages
+- Detailed message inspection with notification, data, and metadata sections
+- Message persistence across app reloads
+- Automatic device identification for debugging multiple devices
+- Settings for message display preferences with persisted settings
+- Auto-clear messages on reload option
+
+## Installation
+
+1. Add the package to your `pubspec.yaml`:
+```yaml
+dependencies:
+  firebase_messaging_devtool: ^0.2.0
+```
+
+2. Install the DevTools extension:
+```bash
+flutter pub global activate firebase_messaging_devtool_extension_web
+```
+
+3. Run your app:
+```bash
+flutter run
+```
+
+## Usage
+
+1. Start your Flutter app with the DevTools extension enabled
+2. Open the DevTools extension in your browser
+3. Send FCM messages to your app
+4. View the messages in real-time in the DevTools extension
+
+### Device Identification
+
+The extension automatically detects and displays device information:
+
+- **Android devices**: Shows the device model and unique ID
+- **iOS devices**: Shows the device machine name and vendor ID
+- **Web browsers**: Shows the browser name and platform
+- **Desktop platforms**: Shows appropriate system information
+
+The device identification makes it easier to debug applications across multiple devices simultaneously.
+
+### Settings
+
+The extension provides several settings to customize your experience:
+
+- **Show newest messages on top**: Toggle to change the order of messages
+- **Auto-clear messages on reload**: Enable to automatically clear messages when the app reloads
+- **Clear all messages**: Manually clear all stored messages
+
+All settings are persisted between sessions for a better user experience.
+
+## Example
+
+A complete example application is included in the `example` directory of this package. The example demonstrates:
+
+- Setting up Firebase Messaging with proper configuration
+- Implementing the DevTools integration
+- Displaying the FCM token for testing
+- Handling incoming messages
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Screenshots
 
@@ -48,126 +108,3 @@ A Flutter DevTools extension that displays Firebase Cloud Messaging (FCM) events
    ```
 
 3. **Run `flutter pub get`**
-
-## Usage
-
-The integration is now extremely simple:
-
-1. **Import the helper function**:
-
-   ```dart
-   import 'package:firebase_messaging_devtool/firebase_messaging_devtool.dart';
-   ```
-
-2. **Pass the RemoteMessage directly** to the helper function in your message handlers:
-
-   ```dart
-   import 'package:firebase_messaging/firebase_messaging.dart';
-   import 'package:firebase_messaging_devtool/firebase_messaging_devtool.dart';
-   import 'package:flutter/foundation.dart';
-
-   void setupFirebaseMessagingListener() {
-     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-       // Just pass the entire message directly to DevTools - that's it!
-       if (kDebugMode) {
-         postFirebaseMessageToDevTools(message);
-       }
-
-       // Continue with your normal message handling...
-     });
-
-     // Don't forget to also add the same call to onBackgroundMessage handler if applicable
-   }
-   ```
-
-That's all the code you need! The function automatically extracts all relevant information from the message, including:
-- Message identifiers and timestamps
-- Full notification details (including platform-specific parts)
-- Complete data payload
-- All available metadata
-
-## Example
-
-A complete example application is included in the `example` directory of this package. The example demonstrates:
-
-- Setting up Firebase Messaging with proper configuration
-- Implementing the DevTools integration
-- Displaying the FCM token for testing
-- Handling incoming messages
-
-To run the example:
-
-1. Navigate to the example directory:
-   ```bash
-   cd example
-   ```
-
-2. Update the Firebase configuration in `lib/main.dart` with your own project details.
-
-3. Run the example app:
-   ```bash
-   flutter run
-   ```
-
-4. Open DevTools to see incoming messages in real-time.
-
-Check out the `example/README.md` for more detailed instructions.
-
-## Using the DevTools UI
-
-Once integrated, the extension provides a rich interface for inspecting your messages:
-
-1. **Main Tab**: Shows a list of all received messages
-   - Each message shows its ID and timestamp
-   - The most recent message is automatically expanded
-   
-2. **Message Details**: For each message, you can see:
-   - **Notification Tab**: Title, body, and platform-specific notification details
-   - **Data Payload Tab**: Your custom message data
-   - **Metadata Tab**: Additional message properties like sender, collapse key, etc.
-   
-3. **Nested Data**: Complex nested objects and arrays are displayed as expandable trees
-
-4. **Raw JSON**: Each message includes a "View Raw JSON" option to see the complete data
-
-5. **Settings Tab**: Access message count and clear functionality
-
-## Configuring Firebase Cloud Messaging
-
-This extension works with any properly configured Firebase Cloud Messaging implementation. If you haven't set up FCM yet, follow these steps:
-
-1. Set up a Firebase project and add your Flutter app following the [FlutterFire documentation](https://firebase.flutter.dev/docs/overview)
-2. Add the `firebase_messaging` package to your app
-3. Configure platform-specific settings (notification channels for Android, capabilities for iOS, etc.)
-4. Request notification permissions in your app
-5. Set up your message handlers where you'll call `postFirebaseMessageToDevTools`
-
-## Testing with FCM messages
-
-To test your Firebase messages and verify the extension is working:
-
-1. Use the Firebase Console to send test messages
-2. Use the Firebase CLI to send messages programmatically
-3. Set up a simple backend with the Firebase Admin SDK to send test messages
-4. For local testing, use the `FirebaseMessaging.onMessage` stream in combination with a local notification package
-
-## Troubleshooting
-
-**Extension not appearing in DevTools?**
-* Ensure the package is in `dev_dependencies` not `dependencies`
-* Verify you've added the `devtools: extensions:` section to your `pubspec.yaml`
-* Check that you're running in debug mode
-* Restart DevTools completely
-
-**Messages not showing up?**
-* Verify your FCM configuration is working correctly by checking logs
-* Ensure you have passed the whole RemoteMessage object to `postFirebaseMessageToDevTools`
-* Check that you've enabled the extension in DevTools when prompted
-
-## Contributing
-
-Contributions to improve the extension are welcome! Please feel free to submit issues or pull requests to the [GitHub repository](https://github.com/abcx3/firebase_messaging_devtool).
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

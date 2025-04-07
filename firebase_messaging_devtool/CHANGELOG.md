@@ -1,28 +1,45 @@
-## 0.2.0
+# Changelog
 
-* **Bug Fixes**:
-  * Fixed "Clear All Messages" functionality to permanently delete stored messages
-  * Added device identifier to the title for better debugging with multiple devices
+## [0.2.0] - 2024-03-21
 
-* **New Features**:
-  * Added "Automatically clear messages on reload" option in settings
-  * Added debug wrapper around postFirebaseMessageToDevTools for better error handling
+### Added
+- Enhanced device identification using device_info_plus package
+  - Automatic detection of device model and unique ID for Android
+  - Automatic detection of machine name for iOS devices
+  - Automatic detection of browser type and platform for web
+  - Support for desktop platforms (Windows, macOS, Linux)
+- Improved message persistence with shared_preferences
+- Auto-clear messages on reload setting
+- Enhanced error handling and logging
 
-## 0.1.2
+### Changed
+- Updated message storage to use shared_preferences instead of dart:html
+- Improved device identification display format
+- Enhanced documentation with device identification instructions
+- Fixed settings persistence when switching tabs
 
-* Added a complete example application to demonstrate best practices:
-  * Proper implementation of Firebase Messaging with DevTools integration
-  * Display of FCM token for testing purposes
-  * Comprehensive README with step-by-step instructions
-  * Well-structured project with appropriate configurations:
-    * Properly configured pubspec.yaml
-    * Analysis options for code quality
-    * Platform-specific configurations
-    * Basic test structure
+### Fixed
+- Fixed message persistence across app reloads
+- Fixed settings persistence when switching tabs
+- Fixed auto-clear functionality in settings
 
-## 0.1.1
+## [0.1.2] - 2024-03-20
 
-* Fixed typo in link to screenshot
+### Added
+- Debug wrapper around postFirebaseMessageToDevTools function
+- Enhanced error handling and logging
+
+### Fixed
+- Fixed "clear all messages" functionality to properly clear messages from storage
+- Fixed settings persistence issues
+
+## [0.1.1] - 2024-03-19
+
+### Added
+- Initial release with basic message display functionality
+- Support for viewing notification, data, and metadata sections
+- Message persistence across app reloads
+- Settings for message display preferences
 
 ## 0.1.0
 

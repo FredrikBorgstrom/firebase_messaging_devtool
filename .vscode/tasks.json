@@ -14,6 +14,11 @@
          "command": "cd firebase_messaging_devtool_extension_web && dart run devtools_extensions build_and_copy --source=. --dest=../firebase_messaging_devtool/extension/devtools && cd .."
       },
       {
+         "label": "build with sourcemaps",
+         "type": "shell",
+         "command": "cd firebase_messaging_devtool_extension_web && flutter build web --csp &&  cd .."
+      },
+      {
          "label": "publish",
          "type": "shell",
          "command": "dart pub publish"

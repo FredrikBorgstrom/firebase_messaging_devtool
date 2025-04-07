@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_messaging_devtool/firebase_messaging_devtool.dart';
@@ -12,6 +14,14 @@ const firebaseOptions = FirebaseOptions(
   projectId: 'your-project-id',
 );
 
+String _getDefaultDeviceId() {
+  return Platform.isAndroid ? 'android-device' : 'ios-device';
+}
+
+String _getDefaultDeviceName() {
+  return Platform.isAndroid ? 'Android Device' : 'iOS Device';
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: firebaseOptions);
@@ -19,11 +29,21 @@ void main() async {
   // Request permission for notifications (iOS)
   await FirebaseMessaging.instance.requestPermission();
 
+  // Get device information
+  final deviceId = const String.fromEnvironment(
+    'FLUTTER_DEVICE_ID',
+    defaultValue: 'unknown',
+  );
+  final deviceName = const String.fromEnvironment(
+    'FLUTTER_DEVICE_NAME',
+    defaultValue: 'Unknown Device',
+  );
+
   // Set up the message handler with DevTools integration
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
     // Forward the message to DevTools for inspection
     if (kDebugMode) {
-      postFirebaseMessageToDevTools(message);
+      await postFirebaseMessageToDevTools(message);
     }
 
     // Continue with your normal message handling...
