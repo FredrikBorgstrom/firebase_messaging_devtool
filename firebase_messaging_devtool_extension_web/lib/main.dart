@@ -4,9 +4,12 @@ import 'src/app.dart';
 
 void main() {
   runApp(
-    const MaterialApp(
+    MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: FirebaseMessagingDevToolsExtension(),
+      theme: ThemeData(
+        useMaterial3: false, // Disable Material 3 to avoid TabAlignment issues
+      ),
+      home: const FirebaseMessagingDevToolsExtension(),
     ),
   );
 }

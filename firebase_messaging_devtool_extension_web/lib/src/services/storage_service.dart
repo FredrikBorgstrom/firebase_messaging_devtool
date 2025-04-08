@@ -217,29 +217,59 @@ class StorageService {
       }
 
       final messagesJson = web.window.localStorage.getItem(messagesStorageKey);
-      if (messagesJson == null || messagesJson.isEmpty) {
+      if (messagesJson == null ||
+          messagesJson.isEmpty ||
+          messagesJson == '[]') {
         developer.log(
-          '[LoadMessages] No message JSON found in storage or string is empty.',
+          '[LoadMessages] No message JSON found in storage or empty array.',
           name: 'FirebaseMessagingDevTool',
         );
         return [];
       }
 
+      // Log full JSON for debugging
       developer.log(
-        '[LoadMessages] Found JSON string in storage: ${messagesJson.substring(0, (messagesJson.length > 100 ? 100 : messagesJson.length))}...',
+        '[LoadMessages] Found JSON string in storage (full): $messagesJson',
         name: 'FirebaseMessagingDevTool',
       );
 
-      // Deserialize messages
+      // Deserialize messages with extra validation
       try {
         final List<dynamic> decodedList = json.decode(messagesJson);
+        developer.log(
+          '[LoadMessages] Raw decoded list size: ${decodedList.length}',
+          name: 'FirebaseMessagingDevTool',
+        );
+
+        // Check for duplicate message IDs
+        final Set<String> messageIds = {};
+        final List<dynamic> uniqueJsonList = [];
+
+        for (final jsonItem in decodedList) {
+          final String? messageId = jsonItem['messageId'] as String?;
+          if (messageId != null && !messageIds.contains(messageId)) {
+            messageIds.add(messageId);
+            uniqueJsonList.add(jsonItem);
+          } else {
+            developer.log(
+              '[LoadMessages] Found duplicate or null message ID, skipping: ${messageId ?? 'null'}',
+              name: 'FirebaseMessagingDevTool',
+            );
+          }
+        }
+
+        developer.log(
+          '[LoadMessages] After deduplication: ${uniqueJsonList.length} messages (removed ${decodedList.length - uniqueJsonList.length} duplicates)',
+          name: 'FirebaseMessagingDevTool',
+        );
+
         final List<FirebaseMessage> loadedMessages =
-            decodedList
+            uniqueJsonList
                 .map((jsonData) => FirebaseMessage.fromJson(jsonData))
                 .toList();
 
         developer.log(
-          '[LoadMessages] Parsed ${loadedMessages.length} messages from storage.',
+          '[LoadMessages] Final parsed unique messages: ${loadedMessages.length}',
           name: 'FirebaseMessagingDevTool',
         );
 
@@ -284,24 +314,56 @@ class StorageService {
       // Don't save messages if auto-clear is enabled
       if (isAutoClearEnabled()) {
         developer.log(
-          'Skipping message save because auto-clear is enabled',
+          '[SaveMessages] Skipping message save because auto-clear is enabled',
           name: 'FirebaseMessagingDevTool',
         );
         return;
       }
 
-      final messagesJson = json.encode(
-        messages.map((msg) => msg.originalJson).toList(),
+      // First, completely remove the existing messages to ensure we don't mix with old data
+      await forceClearMessageStorage();
+      developer.log(
+        '[SaveMessages] Cleared previous storage data to prevent duplication',
+        name: 'FirebaseMessagingDevTool',
       );
+
+      // Extract only unique messages by messageId
+      final Map<String, FirebaseMessage> uniqueMessages = {};
+      for (final message in messages) {
+        if (message.messageId.isNotEmpty) {
+          uniqueMessages[message.messageId] = message;
+        }
+      }
+
+      // Convert unique messages back to list
+      final List<FirebaseMessage> deduplicatedMessages =
+          uniqueMessages.values.toList();
+      developer.log(
+        '[SaveMessages] After deduplication: ${deduplicatedMessages.length} messages (removed ${messages.length - deduplicatedMessages.length} duplicates)',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      // Encode the deduplicated messages
+      final messagesJson = json.encode(
+        deduplicatedMessages.map((msg) => msg.originalJson).toList(),
+      );
+
+      // For debugging
+      developer.log(
+        '[SaveMessages] Serialized JSON (first 100 chars): ${messagesJson.substring(0, messagesJson.length > 100 ? 100 : messagesJson.length)}...',
+        name: 'FirebaseMessagingDevTool',
+      );
+
+      // Save to localStorage
       web.window.localStorage.setItem(messagesStorageKey, messagesJson);
 
       developer.log(
-        'Saved ${messages.length} messages to localStorage',
+        '[SaveMessages] Saved ${deduplicatedMessages.length} unique messages to localStorage',
         name: 'FirebaseMessagingDevTool',
       );
     } catch (e, stackTrace) {
       developer.log(
-        'Error saving messages to localStorage: $e',
+        '[SaveMessages] Error saving messages to localStorage: $e',
         name: 'FirebaseMessagingDevTool',
         error: e,
         stackTrace: stackTrace,

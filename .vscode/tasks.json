@@ -14,9 +14,14 @@
          "command": "cd firebase_messaging_devtool_extension_web && dart run devtools_extensions build_and_copy --source=. --dest=../firebase_messaging_devtool/extension/devtools && cd .."
       },
       {
+         "label": "build with no PWA",
+         "type": "shell",
+         "command": "cd firebase_messaging_devtool_extension_web && flutter build web --csp -O0 --pwa-strategy=none && cp -r ./build/web/. ../firebase_messaging_devtool/extension/devtools/build && cd .."
+      },
+      {
          "label": "build with sourcemaps",
          "type": "shell",
-         "command": "cd firebase_messaging_devtool_extension_web && flutter build web --csp --source-maps --debug --optimization-level=0 --pwa-strategy=none && cp -r ./build/web/. ../firebase_messaging_devtool/extension/devtools/build && cd .."
+         "command": "cd firebase_messaging_devtool_extension_web && flutter build web --csp --source-maps --debug -O0 --pwa-strategy=none && cp -r ./build/web/. ../firebase_messaging_devtool/extension/devtools/build && cd .."
       },
       {
          "label": "publish",
