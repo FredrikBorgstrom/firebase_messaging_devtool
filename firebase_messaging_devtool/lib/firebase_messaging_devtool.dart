@@ -36,7 +36,6 @@ const String firebaseMessagingDevToolsEventKind = 'FirebaseMessage';
 /// ```
 Future<void> postFirebaseMessageToDevTools(RemoteMessage message) async {
   if (!kDebugMode) return;
-
   try {
     // Get device information using device_info_plus
     final deviceInfoPlugin = DeviceInfoPlugin();

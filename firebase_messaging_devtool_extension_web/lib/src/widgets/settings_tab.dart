@@ -3,19 +3,13 @@ import 'package:flutter/material.dart';
 /// Widget for displaying and configuring extension settings
 class SettingsTab extends StatelessWidget {
   final bool showNewestOnTop;
-  final bool autoClearOnReload;
   final int messageCount;
   final Future<void> Function(bool) onToggleShowNewestOnTop;
-  final Future<void> Function(bool) onToggleAutoClearOnReload;
-  final Future<void> Function() onClearMessages;
 
   const SettingsTab({
     required this.showNewestOnTop,
-    required this.autoClearOnReload,
     required this.messageCount,
     required this.onToggleShowNewestOnTop,
-    required this.onToggleAutoClearOnReload,
-    required this.onClearMessages,
     super.key,
   });
 
@@ -42,22 +36,6 @@ class SettingsTab extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
-          _buildSectionHeader('Storage Management', isDarkMode),
-          const SizedBox(height: 8),
-          _buildSettingCard(
-            context,
-            title: 'Auto-Clear On Reload',
-            subtitle: 'Messages will be cleared when extension reloads',
-            icon: Icons.cleaning_services,
-            value: autoClearOnReload,
-            onChanged: (value) async {
-              await onToggleAutoClearOnReload(value);
-            },
-          ),
-          const SizedBox(height: 12),
-          _buildClearMessagesButton(context, isDarkMode),
-          const SizedBox(height: 24),
-
           _buildSectionHeader('About', isDarkMode),
           const SizedBox(height: 8),
           _buildInfoCard(
@@ -70,11 +48,10 @@ class SettingsTab extends StatelessWidget {
           const SizedBox(height: 12),
           _buildInfoCard(
             context,
-            title: 'Storage Information',
-            content:
-                'Messages are stored in local storage for persistence between reloads.',
-            subtitle: 'Current message count: $messageCount',
-            icon: Icons.storage,
+            title: 'Message Information',
+            content: 'Messages are stored in memory and cleared on reload.',
+            subtitle: 'Current session message count: $messageCount',
+            icon: Icons.memory,
           ),
           const SizedBox(height: 12),
           _buildInfoCard(
@@ -83,6 +60,16 @@ class SettingsTab extends StatelessWidget {
             content:
                 'To send test messages, use the Firebase console or FCM API.',
             icon: Icons.local_fire_department,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Version: 0.2.1',
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              color: isDarkMode ? Colors.grey[500] : Colors.grey[600],
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -159,54 +146,6 @@ class SettingsTab extends StatelessWidget {
     );
   }
 
-  Widget _buildClearMessagesButton(BuildContext context, bool isDarkMode) {
-    return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            Icon(
-              Icons.delete_forever,
-              size: 28,
-              color: isDarkMode ? Colors.red[300] : Colors.red,
-            ),
-            const SizedBox(width: 16),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Clear All Messages',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    'Remove all messages from storage',
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
-                  ),
-                ],
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                // Show confirmation dialog
-                final shouldClear = await _showClearConfirmationDialog(context);
-                if (shouldClear) {
-                  await onClearMessages();
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDarkMode ? Colors.red[700] : Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('CLEAR'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildInfoCard(
     BuildContext context, {
     required String title,
@@ -268,31 +207,5 @@ class SettingsTab extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Future<bool> _showClearConfirmationDialog(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Clear All Messages'),
-            content: const Text(
-              'Are you sure you want to clear all messages? '
-              'This action cannot be undone.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('CANCEL'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('CLEAR'),
-              ),
-            ],
-          ),
-    );
-    return result ?? false;
   }
 }

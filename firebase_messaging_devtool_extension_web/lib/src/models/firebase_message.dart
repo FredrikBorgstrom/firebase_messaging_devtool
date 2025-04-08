@@ -1,5 +1,3 @@
-import 'dart:developer' as developer;
-
 /// Message model to better organize Firebase Cloud Messaging data
 class FirebaseMessage {
   final String messageId;
@@ -24,26 +22,12 @@ class FirebaseMessage {
     final metadata = <String, dynamic>{};
 
     try {
-      developer.log(
-        'Converting message from JSON: ${json.keys.join(', ')}',
-        name: 'FirebaseMessagingDevTool',
-      );
-
       // Extract notification
       if (json.containsKey('notification') && json['notification'] != null) {
         final notificationData = json['notification'];
         if (notificationData is Map) {
           notification.addAll(Map<String, dynamic>.from(notificationData));
-          developer.log(
-            'Extracted notification fields: ${notification.keys.join(', ')}',
-            name: 'FirebaseMessagingDevTool',
-          );
-        } else {
-          developer.log(
-            'Notification is not a Map: $notificationData',
-            name: 'FirebaseMessagingDevTool',
-          );
-        }
+        } else {}
       }
 
       // Extract data payload
@@ -51,16 +35,7 @@ class FirebaseMessage {
         final dataPayload = json['data'];
         if (dataPayload is Map) {
           data.addAll(Map<String, dynamic>.from(dataPayload));
-          developer.log(
-            'Extracted data payload fields: ${data.keys.join(', ')}',
-            name: 'FirebaseMessagingDevTool',
-          );
-        } else {
-          developer.log(
-            'Data payload is not a Map: $dataPayload',
-            name: 'FirebaseMessagingDevTool',
-          );
-        }
+        } else {}
       }
 
       // Extract metadata (everything that's not notification or data)
@@ -74,11 +49,6 @@ class FirebaseMessage {
         }
       }
 
-      developer.log(
-        'Extracted metadata fields: ${metadata.keys.join(', ')}',
-        name: 'FirebaseMessagingDevTool',
-      );
-
       // Parse sentTime if available
       DateTime? sentTime;
       if (json.containsKey('sentTime') && json['sentTime'] != null) {
@@ -89,26 +59,12 @@ class FirebaseMessage {
           } else if (sentTimeValue is int) {
             sentTime = DateTime.fromMillisecondsSinceEpoch(sentTimeValue);
           }
-
-          developer.log(
-            'Parsed sentTime: $sentTime from value type: ${sentTimeValue.runtimeType}',
-            name: 'FirebaseMessagingDevTool',
-          );
         } catch (e) {
-          developer.log(
-            'Failed to parse sentTime: ${json['sentTime']}',
-            name: 'FirebaseMessagingDevTool',
-            error: e,
-          );
           // Leave sentTime as null if parsing fails
         }
       }
 
       final String messageId = (json['messageId'] as String?) ?? 'unknown';
-      developer.log(
-        'Creating message with ID: $messageId',
-        name: 'FirebaseMessagingDevTool',
-      );
 
       return FirebaseMessage(
         messageId: messageId,
@@ -119,12 +75,6 @@ class FirebaseMessage {
         originalJson: json,
       );
     } catch (e, stackTrace) {
-      developer.log(
-        'Error in FirebaseMessage.fromJson: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-        stackTrace: stackTrace,
-      );
       // Return a fallback message if parsing fails
       return FirebaseMessage(
         messageId: 'error_parsing',

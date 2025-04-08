@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:devtools_extensions/devtools_extensions.dart';
 import 'package:flutter/material.dart';
@@ -20,30 +19,29 @@ class MessageDisplayScreen extends StatefulWidget {
 
 class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     with SingleTickerProviderStateMixin {
-  // Change from final to non-final so we can reassign it
+  // Messages are now purely in-memory
   List<FirebaseMessage> _messages = [];
   // Keep track of the subscription to cancel it later
   StreamSubscription<Event>? _eventSubscription;
   // Tab controller for the main tabs
   late TabController _tabController;
-  // Setting for message order preference
+  // Setting for message order preference (still persistent)
   bool _showNewestOnTop = false;
-  // Setting for auto-clear on reload
-  bool _autoClearOnReload = false;
   // Device identifier
   String _deviceIdentifier = '';
-  // Flag to prevent saves during clear operations
-  bool _isClearing = false;
+  // Flag to control message acceptance after initial connection
+  bool _acceptingMessages = false;
+  // Timer to delay message acceptance
+  Timer? _acceptMessagesTimer;
 
   @override
   void initState() {
+    // Ensure messages list is cleared right at the beginning
+    _messages = [];
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
-    // Apply auto-clear at startup if needed
-    _applyAutoClearIfNeededAtStartup();
-
-    // Load settings
+    // Load settings (only showNewestOnTop)
     _loadSettings();
     _setDeviceIdentifier();
     _initServiceListener();
@@ -53,112 +51,21 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
   void dispose() {
     // Cancel the stream subscription when the widget is disposed
     _eventSubscription?.cancel();
+    // Cancel the timer if it's still active
+    _acceptMessagesTimer?.cancel();
     _tabController.dispose();
     super.dispose();
-  }
-
-  /// Checks the auto-clear setting AT STARTUP and forces storage clear if needed.
-  /// This runs before any other loading logic.
-  void _applyAutoClearIfNeededAtStartup() {
-    try {
-      final autoClearOnReloadStr = StorageService.isAutoClearEnabled();
-      developer.log(
-        '[Startup Check] Auto-clear setting from storage: $autoClearOnReloadStr',
-        name: 'FirebaseMessagingDevTool',
-      );
-
-      if (autoClearOnReloadStr) {
-        developer.log(
-          '[Startup Check] Auto-clear is TRUE. Forcing message clear NOW.',
-          name: 'FirebaseMessagingDevTool',
-        );
-        StorageService.forceClearMessageStorage();
-
-        // Explicitly create a new empty list instead of using clear()
-        _messages = [];
-        developer.log(
-          '[Startup Check] Set _messages to empty list',
-          name: 'FirebaseMessagingDevTool',
-        );
-      } else {
-        developer.log(
-          '[Startup Check] Auto-clear is FALSE or not set. Messages will be loaded if present.',
-          name: 'FirebaseMessagingDevTool',
-        );
-      }
-    } catch (e) {
-      developer.log(
-        'Error during startup auto-clear check: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-      );
-    }
   }
 
   Future<void> _loadSettings() async {
     try {
       final settings = await StorageService.loadSettings();
-
       if (mounted) {
         setState(() {
           _showNewestOnTop = settings['showNewestOnTop'] ?? false;
-          _autoClearOnReload = settings['autoClearOnReload'] ?? false;
         });
       }
-
-      // Load messages ONLY if auto-clear is currently disabled
-      if (!_autoClearOnReload) {
-        _loadMessages();
-      } else {
-        developer.log(
-          'Skipping _loadMessages because auto-clear is enabled.',
-          name: 'FirebaseMessagingDevTool',
-        );
-      }
-    } catch (e, stackTrace) {
-      developer.log(
-        'Error loading settings: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  Future<void> _loadMessages() async {
-    developer.log(
-      '[Message Screen] Starting _loadMessages() with current count: ${_messages.length}',
-      name: 'FirebaseMessagingDevTool',
-    );
-
-    try {
-      final loadedMessages = await StorageService.loadMessages();
-      developer.log(
-        '[Message Screen] Loaded ${loadedMessages.length} messages from storage',
-        name: 'FirebaseMessagingDevTool',
-      );
-
-      if (mounted) {
-        setState(() {
-          // Use empty list assignment first
-          _messages = [];
-          // Then add all loaded messages
-          _messages.addAll(loadedMessages);
-
-          developer.log(
-            '[Message Screen] Updated _messages list, new count: ${_messages.length}',
-            name: 'FirebaseMessagingDevTool',
-          );
-        });
-      }
-    } catch (e, stackTrace) {
-      developer.log(
-        'Error in _loadMessages: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
+    } catch (e, stackTrace) {}
   }
 
   void _setDeviceIdentifier() {
@@ -171,126 +78,64 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
   // Async function to wait for the service and set up the listener
   Future<void> _initServiceListener() async {
     try {
-      // Wait for the VM service connection to become available.
-      developer.log(
-        'Setting up event listener...',
-        name: 'FirebaseMessagingDevTool',
-      );
-
       final vmService = await serviceManager.onServiceAvailable;
-      developer.log(
-        'VM service is available',
-        name: 'FirebaseMessagingDevTool',
-      );
-
-      // Register for FirebaseMessage events
       await vmService.registerService(
         'FirebaseMessage',
         'ext.firebase_messaging.message',
       );
-      developer.log(
-        'Registered for Firebase Messaging events',
-        name: 'FirebaseMessagingDevTool',
-      );
-
-      // Listen for events posted by the debugged application
       _eventSubscription = vmService.onExtensionEvent.listen(
         (event) {
-          developer.log(
-            'Received event kind: ${event.extensionKind}',
-            name: 'FirebaseMessagingDevTool',
-          );
-
-          // Accept both event kinds for backward compatibility
           if (event.extensionKind == 'FirebaseMessage' ||
               event.extensionKind == 'ext.firebase_messaging.message') {
-            developer.log(
-              'Received firebase message event!',
-              name: 'FirebaseMessagingDevTool',
-            );
             _handleMessageEvent(event);
           }
         },
-        onError: (error) {
-          // Handle stream errors
-          developer.log(
-            'Error listening to extension events: $error',
-            name: 'FirebaseMessagingDevTool',
-            error: error,
-          );
-        },
-        onDone: () {
-          // Handle stream closing (optional)
-          developer.log(
-            'Extension event stream closed.',
-            name: 'FirebaseMessagingDevTool',
-          );
-        },
+        onError: (error) {},
+        onDone: () {},
       );
 
-      developer.log(
-        'Event listener setup complete',
-        name: 'FirebaseMessagingDevTool',
-      );
-    } catch (e, stackTrace) {
-      developer.log(
-        'Error setting up service listener: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
+      // Start a timer to enable message acceptance after a delay
+      _acceptMessagesTimer?.cancel(); // Cancel any existing timer
+      _acceptMessagesTimer = Timer(const Duration(milliseconds: 500), () {
+        if (mounted) {
+          // Only set the flag if the widget is still mounted
+          _acceptingMessages = true;
+          // Optionally log when messages start being accepted (if logging needed later)
+          // print('[Init Listener] Now accepting messages.');
+        }
+      });
+    } catch (e, stackTrace) {}
   }
 
   void _handleMessageEvent(Event event) {
-    try {
-      developer.log(
-        'Processing event: ${event.extensionKind}',
-        name: 'FirebaseMessagingDevTool',
-      );
+    // Ignore messages received before the acceptance timer fires
+    if (!_acceptingMessages) {
+      // Optionally log that a message was ignored due to timing
+      // print('[HandleEvent] Ignoring early message.');
+      return;
+    }
 
+    try {
       final data = event.extensionData?.data as Map<String, dynamic>?;
       if (data == null) {
-        developer.log(
-          'Received null data from event',
-          name: 'FirebaseMessagingDevTool',
-        );
         return;
       }
-
-      developer.log(
-        'Message data received: ${data.keys.join(', ')}',
-        name: 'FirebaseMessagingDevTool',
-      );
-
       final message = FirebaseMessage.fromJson(data);
-      developer.log(
-        'Message parsed with ID: ${message.messageId}',
-        name: 'FirebaseMessagingDevTool',
-      );
 
-      // Check for duplicate message IDs before adding
-      bool isDuplicate = _messages.any((m) => m.messageId == message.messageId);
-      if (isDuplicate) {
-        developer.log(
-          'Skipping duplicate message with ID: ${message.messageId}',
-          name: 'FirebaseMessagingDevTool',
-        );
-        return;
-      }
+      // Removed the duplicate ID check, relying on time-based filter
+      // if (message.messageId.isNotEmpty &&
+      //     _messages.any((m) => m.messageId == message.messageId)) {
+      //   return;
+      // }
 
-      // Update device identifier if available in the message
       if (data['deviceId'] != null || data['deviceName'] != null) {
         setState(() {
           _deviceIdentifier =
               '${data['deviceName'] ?? 'Unknown Device'} (${data['deviceId'] ?? 'unknown'})';
         });
-        developer.log(
-          'Updated device identifier: $_deviceIdentifier',
-          name: 'FirebaseMessagingDevTool',
-        );
       }
 
+      // Add the message to the list
       setState(() {
         if (_showNewestOnTop) {
           _messages.insert(0, message);
@@ -298,90 +143,24 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
           _messages.add(message);
         }
       });
-
-      // Schedule the save for after the state update completes, ONLY if not clearing
-      if (!_isClearing) {
-        Future.microtask(() => _saveMessages());
-      }
-
-      developer.log(
-        'Message added to list: ${message.messageId}, total count: ${_messages.length}',
-        name: 'FirebaseMessagingDevTool',
-      );
-    } catch (e, stackTrace) {
-      developer.log(
-        'Error handling message event: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
+    } catch (e, stackTrace) {}
   }
 
-  Future<void> _saveMessages() async {
-    developer.log(
-      '[Message Screen] Saving ${_messages.length} messages to storage',
-      name: 'FirebaseMessagingDevTool',
-    );
-
-    try {
-      await StorageService.saveMessages(_messages, isClearing: _isClearing);
-    } catch (e, stackTrace) {
-      developer.log(
-        '[Message Screen] Error saving messages: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
+  // Simplified clear: only clears the in-memory list
   Future<void> _clearMessages() async {
-    _isClearing = true; // Set flag at the start
-    developer.log(
-      '[Manual Clear] Start. _isClearing = true',
-      name: 'FirebaseMessagingDevTool',
-    );
     try {
-      // Clear in-memory messages by assigning a new empty list
       if (mounted) {
         setState(() {
           _messages = [];
-          developer.log(
-            '[Manual Clear] Set _messages to empty list',
-            name: 'FirebaseMessagingDevTool',
-          );
         });
       }
-
-      // Force clear storage using the robust method
-      await StorageService.forceClearMessageStorage();
-      developer.log(
-        '[Manual Clear] Storage clear attempted.',
-        name: 'FirebaseMessagingDevTool',
-      );
-
-      // Force next session to auto-clear
-      StorageService.forceAutoClearNextSession();
     } catch (e, stackTrace) {
-      developer.log(
-        '[Manual Clear] Error: $e',
-        name: 'FirebaseMessagingDevTool',
-        error: e,
-        stackTrace: stackTrace,
-      );
+      print('[MessageDisplayScreen] Error clearing in-memory messages: $e');
     }
-    // NOTE: We intentionally DO NOT reset _isClearing = false here.
-    // This prevents saves for the rest of the current session after a manual clear.
-    developer.log(
-      '[Manual Clear] Finished. _isClearing remains true for this session.',
-      name: 'FirebaseMessagingDevTool',
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Detect the current theme brightness for proper styling
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -416,19 +195,15 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
           _buildMessagesTab(),
           SettingsTab(
             showNewestOnTop: _showNewestOnTop,
-            autoClearOnReload: _autoClearOnReload,
-            onClearMessages: _clearMessages,
             onToggleShowNewestOnTop: _toggleShowNewestOnTop,
-            onToggleAutoClearOnReload: _toggleAutoClearOnReload,
             messageCount: _messages.length,
           ),
         ],
       ),
+      // Keep FAB to clear in-memory messages for the current session
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          await _clearMessages();
-        },
-        tooltip: 'Clear Messages',
+        onPressed: _clearMessages, // Directly call the simplified clear
+        tooltip: 'Clear Session Messages',
         backgroundColor: isDarkMode ? Colors.blue[700] : Colors.blue,
         foregroundColor: Colors.white,
         child: const Icon(Icons.delete_sweep),
@@ -436,34 +211,21 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     );
   }
 
+  // Only saves the showNewestOnTop setting
   Future<void> _toggleShowNewestOnTop(bool value) async {
     setState(() {
       _showNewestOnTop = value;
     });
-    await StorageService.saveSettings(
-      showNewestOnTop: _showNewestOnTop,
-      autoClearOnReload: _autoClearOnReload,
-    );
+    await StorageService.saveSettings(showNewestOnTop: _showNewestOnTop);
 
+    // Only reorder in-memory list
     if (_messages.isNotEmpty) {
       setState(() {
         final reversedMessages = _messages.reversed.toList();
-        // Use empty list assignment first, then add all messages
         _messages = [];
         _messages.addAll(reversedMessages);
       });
-      await StorageService.saveMessages(_messages, isClearing: _isClearing);
     }
-  }
-
-  Future<void> _toggleAutoClearOnReload(bool value) async {
-    setState(() {
-      _autoClearOnReload = value;
-    });
-    await StorageService.saveSettings(
-      showNewestOnTop: _showNewestOnTop,
-      autoClearOnReload: _autoClearOnReload,
-    );
   }
 
   Widget _buildMessagesTab() {
@@ -489,7 +251,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Firebase messages will appear here when received',
+              'Messages will appear here (cleared on reload)',
               style: TextStyle(
                 fontSize: 14,
                 color: isDarkMode ? Colors.grey[500] : Colors.grey[500],
@@ -513,30 +275,12 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     );
   }
 
-  // Add a method to delete individual messages
-  Future<void> _deleteMessage(int index) async {
-    developer.log(
-      '[Delete Message] Deleting message at index: $index',
-      name: 'FirebaseMessagingDevTool',
-    );
-
+  // Simplified delete: only removes from in-memory list
+  void _deleteMessage(int index) {
     if (mounted) {
       setState(() {
         _messages.removeAt(index);
-        developer.log(
-          '[Delete Message] Removed message. Remaining count: ${_messages.length}',
-          name: 'FirebaseMessagingDevTool',
-        );
       });
-
-      // Save updated messages to storage
-      if (!_isClearing) {
-        await StorageService.saveMessages(_messages, isClearing: false);
-        developer.log(
-          '[Delete Message] Updated storage after message deletion',
-          name: 'FirebaseMessagingDevTool',
-        );
-      }
     }
   }
 }
