@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 /// Widget for displaying and configuring extension settings
 class SettingsTab extends StatelessWidget {
   final bool showNewestOnTop;
+  final bool clearOnReload;
   final int messageCount;
   final Future<void> Function(bool) onToggleShowNewestOnTop;
+  final Future<void> Function(bool) onToggleClearOnReload;
 
   const SettingsTab({
     required this.showNewestOnTop,
+    required this.clearOnReload,
     required this.messageCount,
     required this.onToggleShowNewestOnTop,
+    required this.onToggleClearOnReload,
     super.key,
   });
 
@@ -36,6 +40,21 @@ class SettingsTab extends StatelessWidget {
           ),
           const SizedBox(height: 16),
 
+          _buildSectionHeader('Reload Behavior', isDarkMode),
+          const SizedBox(height: 8),
+          _buildSettingCard(
+            context,
+            title: 'Clear Messages on Restart',
+            subtitle:
+                'If ON, messages are cleared on restart. If OFF, messages are preserved on restart.',
+            icon: Icons.refresh,
+            value: clearOnReload,
+            onChanged: (value) async {
+              await onToggleClearOnReload(value);
+            },
+          ),
+          const SizedBox(height: 24),
+
           _buildSectionHeader('About', isDarkMode),
           const SizedBox(height: 8),
           _buildInfoCard(
@@ -49,7 +68,10 @@ class SettingsTab extends StatelessWidget {
           _buildInfoCard(
             context,
             title: 'Message Information',
-            content: 'Messages are stored in memory and cleared on reload.',
+            content:
+                clearOnReload
+                    ? 'Messages are stored in memory and cleared on reload.'
+                    : 'Messages are stored in memory; initial burst may appear on reload.',
             subtitle: 'Current session message count: $messageCount',
             icon: Icons.memory,
           ),

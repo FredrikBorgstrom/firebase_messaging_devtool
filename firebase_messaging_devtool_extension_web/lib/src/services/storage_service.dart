@@ -13,31 +13,40 @@ class StorageService {
       final showNewestOnTopStr = web.window.localStorage.getItem(
         showNewestOnTopKey,
       );
-      // Removed autoClearOnReload load
+      // Load the new clearOnReload setting
+      final clearOnReloadStr = web.window.localStorage.getItem(
+        clearOnReloadKey,
+      );
 
       final showNewestOnTop = showNewestOnTopStr == 'true';
+      // Default clearOnReload to true if not found or invalid
+      final clearOnReload = clearOnReloadStr != 'false';
 
       return {
         'showNewestOnTop': showNewestOnTop,
-        // Removed autoClearOnReload return
+        'clearOnReload': clearOnReload, // Return the setting
       };
     } catch (e, stackTrace) {
       // Return defaults
-      return {'showNewestOnTop': false};
+      return {'showNewestOnTop': false, 'clearOnReload': true};
     }
   }
 
   /// Saves user settings to local storage
   static Future<void> saveSettings({
     required bool showNewestOnTop,
-    // Removed autoClearOnReload parameter
+    required bool clearOnReload, // Add parameter
   }) async {
     try {
       web.window.localStorage.setItem(
         showNewestOnTopKey,
         showNewestOnTop.toString(),
       );
-      // Removed autoClearOnReload save
+      // Save the new clearOnReload setting
+      web.window.localStorage.setItem(
+        clearOnReloadKey,
+        clearOnReload.toString(),
+      );
     } catch (e, stackTrace) {}
   }
 }

@@ -27,11 +27,13 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
   late TabController _tabController;
   // Setting for message order preference (still persistent)
   bool _showNewestOnTop = false;
+  // Setting to clear messages on restart (effectively controls the initial filter)
+  bool _clearOnReload = true; // Default to true
   // Device identifier
   String _deviceIdentifier = '';
-  // Flag to control message acceptance after initial connection
+  // Flag to control message acceptance based on _clearOnReload setting
   bool _acceptingMessages = false;
-  // Timer to delay message acceptance
+  // Timer to delay message acceptance (only used if _clearOnReload is true)
   Timer? _acceptMessagesTimer;
 
   @override
@@ -41,10 +43,19 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
 
-    // Load settings (only showNewestOnTop)
-    _loadSettings();
+    // Load settings which determines initial _acceptingMessages state
+    _loadSettingsAndInitListener();
     _setDeviceIdentifier();
-    _initServiceListener();
+  }
+
+  // Combine loading settings and initializing listener
+  Future<void> _loadSettingsAndInitListener() async {
+    await _loadSettings(); // Load settings first
+
+    // Set initial acceptance based on loaded setting
+    _acceptingMessages = !_clearOnReload;
+
+    _initServiceListener(); // Then initialize listener
   }
 
   @override
@@ -63,9 +74,18 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
       if (mounted) {
         setState(() {
           _showNewestOnTop = settings['showNewestOnTop'] ?? false;
+          _clearOnReload = settings['clearOnReload'] ?? true; // Load setting
         });
       }
-    } catch (e, stackTrace) {}
+    } catch (e, stackTrace) {
+      if (mounted) {
+        setState(() {
+          // Ensure defaults are set on error
+          _showNewestOnTop = false;
+          _clearOnReload = true;
+        });
+      }
+    }
   }
 
   void _setDeviceIdentifier() {
@@ -94,24 +114,24 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
         onDone: () {},
       );
 
-      // Start a timer to enable message acceptance after a delay
-      _acceptMessagesTimer?.cancel(); // Cancel any existing timer
-      _acceptMessagesTimer = Timer(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          // Only set the flag if the widget is still mounted
-          _acceptingMessages = true;
-          // Optionally log when messages start being accepted (if logging needed later)
-          // print('[Init Listener] Now accepting messages.');
-        }
-      });
+      // Only start the timer if clearOnReload is true
+      if (_clearOnReload) {
+        _acceptMessagesTimer?.cancel(); // Cancel any existing timer
+        _acceptMessagesTimer = Timer(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            _acceptingMessages = true;
+          }
+        });
+      } else {
+        // If clearOnReload is false, accept messages immediately
+        _acceptingMessages = true;
+      }
     } catch (e, stackTrace) {}
   }
 
   void _handleMessageEvent(Event event) {
-    // Ignore messages received before the acceptance timer fires
+    // Ignore messages received before the acceptance flag is set
     if (!_acceptingMessages) {
-      // Optionally log that a message was ignored due to timing
-      // print('[HandleEvent] Ignoring early message.');
       return;
     }
 
@@ -121,12 +141,6 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
         return;
       }
       final message = FirebaseMessage.fromJson(data);
-
-      // Removed the duplicate ID check, relying on time-based filter
-      // if (message.messageId.isNotEmpty &&
-      //     _messages.any((m) => m.messageId == message.messageId)) {
-      //   return;
-      // }
 
       if (data['deviceId'] != null || data['deviceName'] != null) {
         setState(() {
@@ -195,7 +209,10 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
           _buildMessagesTab(),
           SettingsTab(
             showNewestOnTop: _showNewestOnTop,
+            clearOnReload: _clearOnReload, // Pass the setting
             onToggleShowNewestOnTop: _toggleShowNewestOnTop,
+            onToggleClearOnReload:
+                _toggleClearOnReload, // Pass the toggle handler
             messageCount: _messages.length,
           ),
         ],
@@ -211,12 +228,16 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     );
   }
 
-  // Only saves the showNewestOnTop setting
+  // Saves showNewestOnTop setting
   Future<void> _toggleShowNewestOnTop(bool value) async {
     setState(() {
       _showNewestOnTop = value;
     });
-    await StorageService.saveSettings(showNewestOnTop: _showNewestOnTop);
+    // Save both settings together
+    await StorageService.saveSettings(
+      showNewestOnTop: _showNewestOnTop,
+      clearOnReload: _clearOnReload,
+    );
 
     // Only reorder in-memory list
     if (_messages.isNotEmpty) {
@@ -225,6 +246,30 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
         _messages = [];
         _messages.addAll(reversedMessages);
       });
+    }
+  }
+
+  // Add handler for the new setting
+  Future<void> _toggleClearOnReload(bool value) async {
+    setState(() {
+      _clearOnReload = value;
+    });
+    // Save both settings together
+    await StorageService.saveSettings(
+      showNewestOnTop: _showNewestOnTop,
+      clearOnReload: _clearOnReload,
+    );
+
+    // Update acceptance state immediately based on new setting
+    // If turning ON clearOnReload, messages might still be accepted briefly if timer is running
+    // If turning OFF clearOnReload, accept immediately
+    if (!_clearOnReload) {
+      _acceptMessagesTimer?.cancel(); // Cancel timer if turning off
+      _acceptingMessages = true;
+    } else {
+      // If turning ON, reset acceptance and let the listener logic restart the timer if needed (on next load)
+      // For current session, we might have already passed the timer, so new messages might still come in.
+      // A full reload is needed for the timer logic to restart correctly based on this setting.
     }
   }
 
@@ -251,7 +296,9 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              'Messages will appear here (cleared on reload)',
+              _clearOnReload
+                  ? 'Messages will appear here (cleared on reload)'
+                  : 'Messages will appear here (preserved on reload)',
               style: TextStyle(
                 fontSize: 14,
                 color: isDarkMode ? Colors.grey[500] : Colors.grey[500],
