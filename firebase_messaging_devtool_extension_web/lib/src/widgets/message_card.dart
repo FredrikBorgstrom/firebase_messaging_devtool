@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/firebase_message.dart';
 import '../utils/date_formatter.dart';
+import '../utils/remove_null_values.dart';
 
 /// Widget to display a single Firebase message in a card format
 class MessageCard extends StatefulWidget {
@@ -11,6 +12,7 @@ class MessageCard extends StatefulWidget {
   final int index;
   final int totalMessages;
   final bool showNewestOnTop;
+  final bool hideNullValues;
   final Function(int) onDeleteMessage;
 
   const MessageCard({
@@ -18,6 +20,7 @@ class MessageCard extends StatefulWidget {
     required this.index,
     required this.totalMessages,
     required this.showNewestOnTop,
+    required this.hideNullValues,
     required this.onDeleteMessage,
     super.key,
   });
@@ -152,6 +155,20 @@ class _MessageCardState extends State<MessageCard> {
   Widget _buildMessageDetails(FirebaseMessage message) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
+    // Apply null value filtering if the setting is enabled
+    final Map<String, dynamic> notificationData =
+        widget.hideNullValues
+            ? Map<String, dynamic>.from(message.notification).removeNullValues()
+            : message.notification;
+    final Map<String, dynamic> dataPayload =
+        widget.hideNullValues
+            ? Map<String, dynamic>.from(message.data).removeNullValues()
+            : message.data;
+    final Map<String, dynamic> metadata =
+        widget.hideNullValues
+            ? Map<String, dynamic>.from(message.metadata).removeNullValues()
+            : message.metadata;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
       child: Column(
@@ -197,7 +214,7 @@ class _MessageCardState extends State<MessageCard> {
                   _buildTableColumn(
                     'Notification',
                     Icons.notifications,
-                    _buildMapDataRows(message.notification),
+                    _buildMapDataRows(notificationData),
                     emptyMessage: 'No notification data',
                     flex: 2,
                   ),
@@ -209,7 +226,7 @@ class _MessageCardState extends State<MessageCard> {
                   _buildTableColumn(
                     'Data Payload',
                     Icons.data_array,
-                    _buildMapDataRows(message.data),
+                    _buildMapDataRows(dataPayload),
                     emptyMessage: 'No data payload',
                     flex: 3,
                   ),
@@ -221,10 +238,7 @@ class _MessageCardState extends State<MessageCard> {
                   _buildTableColumn(
                     'Metadata',
                     Icons.label,
-                    _buildMapDataRows(
-                      message.metadata,
-                      excludeKeys: ['receivedAt'],
-                    ),
+                    _buildMapDataRows(metadata, excludeKeys: ['receivedAt']),
                     emptyMessage: 'No additional metadata',
                     flex: 2,
                   ),

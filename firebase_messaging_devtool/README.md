@@ -18,7 +18,7 @@ A Flutter DevTools extension for inspecting Firebase Cloud Messaging (FCM) messa
 - Detailed message inspection with notification, data, and metadata sections
 - Message persistence across app reloads
 - Automatic device identification for debugging multiple devices
-- Settings for message display preferences with persisted settings
+- Option to hide null values in messages
 - Auto-clear messages on reload option
 
 ## Installation
@@ -26,7 +26,7 @@ A Flutter DevTools extension for inspecting Firebase Cloud Messaging (FCM) messa
 1. Add the package to your `pubspec.yaml`:
 ```yaml
 dependencies:
-  firebase_messaging_devtool: ^0.2.0
+  firebase_messaging_devtool: ^0.2.1
 ```
 
 2. Install the DevTools extension:

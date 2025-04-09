@@ -1,21 +1,21 @@
 # Changelog
 
-## [0.2.0] - 2024-03-21
+## [0.2.1] - 2024-04-09
+
+### Added
+- Setting to hide message fields with null values
+
+
+## [0.2.0] - 2024-04-01
 
 ### Added
 - Enhanced device identification using device_info_plus package
-  - Automatic detection of device model and unique ID for Android
-  - Automatic detection of machine name for iOS devices
-  - Automatic detection of browser type and platform for web
-  - Support for desktop platforms (Windows, macOS, Linux)
 - Improved message persistence with shared_preferences
 - Auto-clear messages on reload setting
-- Enhanced error handling and logging
+
 
 ### Changed
-- Updated message storage to use shared_preferences instead of dart:html
 - Improved device identification display format
-- Enhanced documentation with device identification instructions
 - Fixed settings persistence when switching tabs
 
 ### Fixed

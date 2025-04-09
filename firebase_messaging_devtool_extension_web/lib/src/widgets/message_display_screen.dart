@@ -29,6 +29,8 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
   bool _showNewestOnTop = false;
   // Setting to clear messages on restart (effectively controls the initial filter)
   bool _clearOnReload = true; // Default to true
+  // Setting to hide null values in message details
+  bool _hideNullValues = false; // Default to false
   // Device identifier
   String _deviceIdentifier = '';
   // Flag to control message acceptance based on _clearOnReload setting
@@ -75,6 +77,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
         setState(() {
           _showNewestOnTop = settings['showNewestOnTop'] ?? false;
           _clearOnReload = settings['clearOnReload'] ?? true; // Load setting
+          _hideNullValues = settings['hideNullValues'] ?? false; // Load setting
         });
       }
     } catch (e, stackTrace) {
@@ -83,6 +86,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
           // Ensure defaults are set on error
           _showNewestOnTop = false;
           _clearOnReload = true;
+          _hideNullValues = false; // Default
         });
       }
     }
@@ -210,9 +214,11 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
           SettingsTab(
             showNewestOnTop: _showNewestOnTop,
             clearOnReload: _clearOnReload, // Pass the setting
+            hideNullValues: _hideNullValues, // Pass the setting
             onToggleShowNewestOnTop: _toggleShowNewestOnTop,
             onToggleClearOnReload:
                 _toggleClearOnReload, // Pass the toggle handler
+            onToggleHideNullValues: _toggleHideNullValues, // Pass handler
             messageCount: _messages.length,
           ),
         ],
@@ -233,11 +239,8 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     setState(() {
       _showNewestOnTop = value;
     });
-    // Save both settings together
-    await StorageService.saveSettings(
-      showNewestOnTop: _showNewestOnTop,
-      clearOnReload: _clearOnReload,
-    );
+    // Save all settings
+    await _saveAllSettings();
 
     // Only reorder in-memory list
     if (_messages.isNotEmpty) {
@@ -254,11 +257,8 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
     setState(() {
       _clearOnReload = value;
     });
-    // Save both settings together
-    await StorageService.saveSettings(
-      showNewestOnTop: _showNewestOnTop,
-      clearOnReload: _clearOnReload,
-    );
+    // Save all settings
+    await _saveAllSettings();
 
     // Update acceptance state immediately based on new setting
     // If turning ON clearOnReload, messages might still be accepted briefly if timer is running
@@ -271,6 +271,25 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
       // For current session, we might have already passed the timer, so new messages might still come in.
       // A full reload is needed for the timer logic to restart correctly based on this setting.
     }
+  }
+
+  // Add handler for the new hideNullValues setting
+  Future<void> _toggleHideNullValues(bool value) async {
+    setState(() {
+      _hideNullValues = value;
+    });
+    // Save all settings
+    await _saveAllSettings();
+    // No immediate effect needed, MessageCard will use the value on next build
+  }
+
+  // Saves all settings
+  Future<void> _saveAllSettings() async {
+    await StorageService.saveSettings(
+      showNewestOnTop: _showNewestOnTop,
+      clearOnReload: _clearOnReload,
+      hideNullValues: _hideNullValues,
+    );
   }
 
   Widget _buildMessagesTab() {
@@ -317,6 +336,7 @@ class _MessageDisplayScreenState extends State<MessageDisplayScreen>
             index: index,
             totalMessages: _messages.length,
             showNewestOnTop: _showNewestOnTop,
+            hideNullValues: _hideNullValues, // Pass the setting
             onDeleteMessage: _deleteMessage,
           ),
     );

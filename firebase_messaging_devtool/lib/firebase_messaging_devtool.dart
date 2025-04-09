@@ -50,6 +50,7 @@ Future<void> postFirebaseMessageToDevTools(RemoteMessage message) async {
     } else if (Platform.isAndroid) {
       // Android platform
       final androidInfo = await deviceInfoPlugin.androidInfo;
+
       deviceId = androidInfo.id;
       deviceName = androidInfo.model;
     } else if (Platform.isIOS) {

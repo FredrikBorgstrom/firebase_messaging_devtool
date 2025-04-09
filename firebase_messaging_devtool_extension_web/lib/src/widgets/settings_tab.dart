@@ -4,16 +4,20 @@ import 'package:flutter/material.dart';
 class SettingsTab extends StatelessWidget {
   final bool showNewestOnTop;
   final bool clearOnReload;
+  final bool hideNullValues;
   final int messageCount;
   final Future<void> Function(bool) onToggleShowNewestOnTop;
   final Future<void> Function(bool) onToggleClearOnReload;
+  final Future<void> Function(bool) onToggleHideNullValues;
 
   const SettingsTab({
     required this.showNewestOnTop,
     required this.clearOnReload,
+    required this.hideNullValues,
     required this.messageCount,
     required this.onToggleShowNewestOnTop,
     required this.onToggleClearOnReload,
+    required this.onToggleHideNullValues,
     super.key,
   });
 
@@ -34,9 +38,16 @@ class SettingsTab extends StatelessWidget {
             subtitle: 'Toggle to change message display order',
             icon: Icons.sort,
             value: showNewestOnTop,
-            onChanged: (value) async {
-              await onToggleShowNewestOnTop(value);
-            },
+            onChanged: onToggleShowNewestOnTop,
+          ),
+          const SizedBox(height: 8),
+          _buildSettingCard(
+            context,
+            title: 'Hide Null Values',
+            subtitle: 'Hide fields with null values in message details',
+            icon: Icons.visibility_off_outlined,
+            value: hideNullValues,
+            onChanged: onToggleHideNullValues,
           ),
           const SizedBox(height: 16),
 
@@ -46,12 +57,10 @@ class SettingsTab extends StatelessWidget {
             context,
             title: 'Clear Messages on Restart',
             subtitle:
-                'If ON, messages are cleared on restart. If OFF, messages are preserved on restart.',
+                'If ON, filters initial messages. If OFF, shows all received.',
             icon: Icons.refresh,
             value: clearOnReload,
-            onChanged: (value) async {
-              await onToggleClearOnReload(value);
-            },
+            onChanged: onToggleClearOnReload,
           ),
           const SizedBox(height: 24),
 
