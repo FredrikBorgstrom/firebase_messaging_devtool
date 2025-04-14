@@ -1,12 +1,18 @@
 # Changelog
 
-## [0.2.1] - 2024-04-09
+## [0.2.2] 2025-04-14
+
+### Changed
+- Added screenshots and better instructions in readme
+
+
+## [0.2.1] - 2025-04-09
 
 ### Added
 - Setting to hide message fields with null values
 
 
-## [0.2.0] - 2024-04-01
+## [0.2.0] - 2025-04-01
 
 ### Added
 - Enhanced device identification using device_info_plus package
@@ -23,7 +29,7 @@
 - Fixed settings persistence when switching tabs
 - Fixed auto-clear functionality in settings
 
-## [0.1.2] - 2024-03-20
+## [0.1.2] - 2025-03-20
 
 ### Added
 - Debug wrapper around postFirebaseMessageToDevTools function
@@ -33,7 +39,7 @@
 - Fixed "clear all messages" functionality to properly clear messages from storage
 - Fixed settings persistence issues
 
-## [0.1.1] - 2024-03-19
+## [0.1.1] - 2025-03-19
 
 ### Added
 - Initial release with basic message display functionality
