@@ -1,4 +1,8 @@
 # Changelog
+## [0.2.3] 2025-04-14
+
+### Changed
+- Fixed broken links to screenshots in readme.md
 
 ## [0.2.2] 2025-04-14
 

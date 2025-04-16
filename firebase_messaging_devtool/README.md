@@ -1,15 +1,3 @@
-<!--
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
-
-
-
 
 # Firebase Messaging DevTool
 
@@ -28,11 +16,11 @@ A Flutter DevTools extension for inspecting Firebase Cloud Messaging (FCM) messa
 * **Message Management**: Clear messages permanently or automatically on reload
 * **Debug Support**: Enhanced error handling and debugging capabilities
 * **Auto-Clear**: Auto-clear messages on reload option in settings
-* **Production safe** The plugin will turn itself off if your app is not running in debug mode
+* **Production safe**: The plugin will turn itself off if your app is not running in debug mode
 
 ## Screenshots
 
-| ![Firebase Messaging DevTool Extension Screenshot](screenshots/screenshot_1.png) | ![settings](screenshots/screenshot_2.png) |
+| ![Firebase Messaging DevTool Extension Screenshot](https://raw.githubusercontent.com/FredrikBorgstrom/firebase_messaging_devtool/09555efa33b11e7351ec21e941338d1cf98808dd/firebase_messaging_devtool/screenshots/screenshot_1.png) | ![settings](https://raw.githubusercontent.com/FredrikBorgstrom/firebase_messaging_devtool/09555efa33b11e7351ec21e941338d1cf98808dd/firebase_messaging_devtool/screenshots/screenshot_2.png) |
 
 ## Setup
 
