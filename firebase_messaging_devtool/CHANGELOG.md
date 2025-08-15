@@ -1,4 +1,11 @@
 # Changelog
+
+## [0.2.4]
+
+### Changed
+- Upgraded dependencies and removed upper bound for firebase packages
+
+
 ## [0.2.3] 2025-04-14
 
 ### Changed
