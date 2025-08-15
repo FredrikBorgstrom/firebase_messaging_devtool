@@ -44,7 +44,7 @@ Update firebase_messaging_devtool/CHANGELOG.md to describe the changes for the n
 Ensure your README.md and LICENSE are up-to-date.
 Navigate to the firebase_messaging_devtool directory in your terminal.
 Run `dart pub publish --dry-run` or `cd firebase_messaging_devtool && dart pub publish --dry-run && cd ..` first to check for any analysis errors or warnings. Fix any issues reported.
-Run dart pub publish to actually publish the package.
+Run `dart pub publish` or `cd firebase_messaging_devtool && dart pub publish && cd ..` to actually publish the package.
 
 ### Publisher Setup
 As mentioned before, setting abcx3 as the publisher for fredrik@abcx3.com is done separately using the dart pub publisher add fredrik@abcx3.com command (after verifying the abcx3.com domain on pub.dev or creating the publisher via the website). You only need to do this setup once for the publisher. Subsequent publishes of this package (or others under abcx3) won't require repeating the publisher setup.
