@@ -1,6 +1,6 @@
 name: firebase_messaging_devtool
 description: A Flutter DevTools extension that displays Firebase Cloud Messaging (FCM) events in real-time for debugging
-version: 0.2.4
+version: 0.2.5
 homepage: https://abcx3.com
 repository: https://github.com/FredrikBorgstrom/firebase_messaging_devtool
 topics: [flutter, firebase, messaging, devtools, extension]
@@ -13,7 +13,7 @@ dependencies:
   flutter:
     sdk: flutter
   firebase_messaging: ">=14.6.5 <17.0.0"
-  device_info_plus: ^11.3.3
+  device_info_plus: ">=11.3.3 <17.0.0"
 
 dev_dependencies:
   flutter_test:

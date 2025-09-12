@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.5]
+- Upgraded device_info_plus to version 12.0.0
+
 ## [0.2.4]
 
 ### Changed
